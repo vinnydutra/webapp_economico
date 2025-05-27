@@ -1,0 +1,24 @@
+{
+    "favoritos_analise": [
+        "NVDA",
+        "PETR4.SA",
+        "AMZO34.SA"
+    ],
+    "posicao_atual": [
+        {
+            "Ticker": "AAPL",
+            "Quantidade": 1.0,
+            "Pre\u00e7o Pago (R$)": 0.02
+        },
+        {
+            "Ticker": "MSFT",
+            "Quantidade": 1.0,
+            "Pre\u00e7o Pago (R$)": 0.08
+        },
+        {
+            "Ticker": "NVDA",
+            "Quantidade": 7.0,
+            "Pre\u00e7o Pago (R$)": 30.08
+        }
+    ]
+}

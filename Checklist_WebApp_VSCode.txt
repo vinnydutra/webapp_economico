@@ -1,0 +1,53 @@
+
+Checklist Definitivo – WebApp Econômico no VSCode
+
+1. Abrindo o Projeto
+- No VSCode: File -> Open Folder...
+- Selecione: /Users/viniciusdutra/Documents/webapp_economico
+
+2. Ambiente Virtual (venv)
+- Criar: python3 -m venv venv
+- Ativar:
+  -> Mac/Linux: source venv/bin/activate
+  -> Windows: .\venv\Scripts\Activate.ps1
+
+3. Configurar Interpretador no VSCode
+- Cmd + Shift + P -> Python: Select Interpreter
+- Selecione: /venv/bin/python (ou equivalente)
+
+4. Instalar Dependências
+- pip install -r requirements.txt
+- Gerar arquivo atualizado: pip freeze > requirements.txt
+
+5. Pacotes Obrigatórios
+- streamlit, yfinance, plotly, wikipedia, pandas, selenium, webdriver-manager, beautifulsoup4
+
+6. Ativar 'code' no terminal (se necessário)
+- No VSCode: Code -> Install 'code' command in PATH
+- Usar: code .
+
+7. Rodar o WebApp
+- streamlit run app.py
+
+8. Encerrar o WebApp
+- Ctrl + C
+
+9. Desativar Ambiente Virtual
+- deactivate
+
+10. Estrutura Correta do Projeto
+webapp_economico/
+├── venv/
+├── app.py
+├── pages/
+│   ├── 1_Analise_Financeira.py
+│   ├── 2_Painel_Economico.py
+│   └── ... (outras seções)
+├── utils.py
+├── requirements.txt
+
+11. Soluções para Problemas Comuns
+- (venv) aparece duplicado -> Fechar e abrir novo terminal
+- code não funciona -> Ativar via menu VSCode
+- Biblioteca faltando -> pip install -r requirements.txt
+- Python não aparece -> Cmd + Shift + P -> Python: Select Interpreter -> venv

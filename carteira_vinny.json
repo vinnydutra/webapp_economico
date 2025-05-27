@@ -1,0 +1,40 @@
+{
+    "favoritos_analise": [
+        "TSLA",
+        "TTWO",
+        "NVDA",
+        "PLTR",
+        "AAPL",
+        "NFLX",
+        "TSM",
+        "BRK-B",
+        "PBR",
+        "VALE",
+        "MSFT",
+        "NVDC34.SA",
+        "P2LT34.SA",
+        "AVGO",
+        "MELI",
+        "GOOG",
+        "BABA",
+        "G2EV34.SA",
+        "GEV",
+        "AAPL34.SA",
+        "VALE3.SA",
+        "PETR4.SA"
+    ],
+    "posicao_atual": [
+        {
+            "Ticker": "PETR4.SA",
+            "Quantidade": 2000,
+            "Custo": "37,14",
+            "Data de Compra": "26/05/25"
+        },
+        {
+            "Ticker": "AAPL",
+            "Quantidade": 200,
+            "Custo": "192,00",
+            "Data de Compra": "26/05/25"
+        }
+    ]
+}

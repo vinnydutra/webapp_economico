@@ -1,0 +1,28 @@
+{
+    "favoritos_analise": [
+        "PETR4.SA",
+        "NVDA"
+    ],
+    "posicao_atual": [
+        {
+            "Ticker": "AAPL",
+            "Quantidade": 1.0,
+            "Pre\u00e7o Pago (R$)": 0.01
+        },
+        {
+            "Ticker": "AMZO",
+            "Quantidade": 2.0,
+            "Pre\u00e7o Pago (R$)": 0.02
+        },
+        {
+            "Ticker": "TSLA",
+            "Quantidade": 3.0,
+            "Pre\u00e7o Pago (R$)": 0.03
+        },
+        {
+            "Ticker": "BERK34.SA",
+            "Quantidade": 4.0,
+            "Pre\u00e7o Pago (R$)": 0.04
+        }
+    ]
+}
