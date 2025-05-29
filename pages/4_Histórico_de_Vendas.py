@@ -75,18 +75,14 @@ for venda in dados_vendas:
     resultado_formatado = f"R$ {resultado:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     cor = "green" if resultado >= 0 else "red"
-    botao = f"""
-    <div style='display: flex; justify-content: center; align-items: center; height: 100%;'>
+    acoes = f"""
+    <div style='display: flex; justify-content: center; align-items: center; gap: 10px; height: 100%;'>
         <a href='?usuario={usuario}&remover_venda={venda['id']}' target="_self" style='color:red; text-decoration:none; font-size:18px;'>ⓧ</a>
-    </div>
-    """.strip()
-    icone_editar = f"""
-    <div style='display: flex; justify-content: center; align-items: center; height: 100%;'>
         <a href='?usuario={usuario}&editar_venda={venda["id"]}' target="_self" style='color:#1a73e8; text-decoration:none; font-size:18px;'>✏️</a>
     </div>
     """.strip()
     valores = [
-        botao + icone_editar,
+        acoes,
         venda["data_compra"],
         venda["ticker"],
         quantidade,
@@ -101,15 +97,26 @@ for venda in dados_vendas:
         col.markdown(f"<div style='margin: 2px 0; padding: 0; line-height: 1.1;'>{val}</div>", unsafe_allow_html=True)
 
     # Formulário de edição logo abaixo da venda correspondente
-    if editar_venda_id == venda["id"]:
+    if editar_venda_id and editar_venda_id.strip().lower() == str(venda["id"]).strip().lower():
         with st.form(f"form_edicao_{venda['id']}"):
             st.markdown("**✏️ Editar Venda:**")
-            nova_data_compra = st.date_input("Data de Compra", value=datetime.strptime(venda["data_compra"], "%Y-%m-%d").date())
+            try:
+                data_compra_formatada = datetime.strptime(venda["data_compra"], "%Y-%m-%d").date()
+            except ValueError:
+                data_compra_formatada = datetime.strptime(venda["data_compra"], "%d/%m/%y").date()
+
+            nova_data_compra = st.date_input("Data de Compra", value=data_compra_formatada)
             novo_ticker = st.text_input("Ticker", value=venda["ticker"])
             nova_quantidade = st.number_input("Quantidade", min_value=1, value=int(venda["quantidade"]), step=1)
             novo_preco_compra = st.number_input("Preço de Compra", min_value=0.0, format="%.2f", value=float(venda["preco_compra"]))
             novo_preco_venda = st.number_input("Preço de Venda", min_value=0.0, format="%.2f", value=float(venda["preco_venda"]))
-            nova_data_venda = st.date_input("Data de Venda", value=datetime.strptime(venda["data_venda"], "%Y-%m-%d").date())
+
+            try:
+                data_venda_formatada = datetime.strptime(venda["data_venda"], "%Y-%m-%d").date()
+            except ValueError:
+                data_venda_formatada = datetime.strptime(venda["data_venda"], "%d/%m/%y").date()
+
+            nova_data_venda = st.date_input("Data de Venda", value=data_venda_formatada)
 
             submit = st.form_submit_button("Salvar alterações")
             if submit:
