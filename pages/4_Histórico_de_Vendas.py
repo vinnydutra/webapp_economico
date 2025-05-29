@@ -105,7 +105,8 @@ for venda in dados_vendas:
             except ValueError:
                 data_compra_formatada = datetime.strptime(venda["data_compra"], "%d/%m/%y").date()
 
-            nova_data_compra = st.date_input("Data de Compra", value=data_compra_formatada)
+            data_compra_str = st.text_input("Data de Compra (DD/MM/YY)", value=data_compra_formatada.strftime("%d/%m/%y"))
+            nova_data_compra = datetime.strptime(data_compra_str, "%d/%m/%y").date()
             novo_ticker = st.text_input("Ticker", value=venda["ticker"])
             nova_quantidade = st.number_input("Quantidade", min_value=1, value=int(venda["quantidade"]), step=1)
             novo_preco_compra = st.number_input("Preço de Compra", min_value=0.0, format="%.2f", value=float(venda["preco_compra"]))
@@ -116,7 +117,8 @@ for venda in dados_vendas:
             except ValueError:
                 data_venda_formatada = datetime.strptime(venda["data_venda"], "%d/%m/%y").date()
 
-            nova_data_venda = st.date_input("Data de Venda", value=data_venda_formatada)
+            data_venda_str = st.text_input("Data de Venda (DD/MM/YY)", value=data_venda_formatada.strftime("%d/%m/%y"))
+            nova_data_venda = datetime.strptime(data_venda_str, "%d/%m/%y").date()
 
             submit = st.form_submit_button("Salvar alterações")
             if submit:
