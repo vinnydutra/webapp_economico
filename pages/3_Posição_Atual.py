@@ -118,14 +118,6 @@ st.markdown("""
 
 st.title("📊 Posição Atual da Carteira")
 
-st.markdown("""
-Esta página permite que você insira seus ativos reais, informando:
-- **Ticker** (ex.: VALE3, PETR4, AMZO34)
-- **Quantidade**
-- **Preço Médio de Compra**
-
-A partir dessas informações, você acompanhará a valorização da sua carteira com dados ao vivo.
-""")
 
 # Carrega dados da carteira do usuário e inicializa o estado da sessão
 if "posicao_atual" not in st.session_state or not st.session_state.posicao_atual:
@@ -159,11 +151,12 @@ if remover is not None:
     st.rerun()
 
 editar = query_params.get("editar", None)
-if editar is not None:
+
+if editar:
     ativo = next((a for a in st.session_state.posicao_atual if a["UUID"] == editar), None)
     if ativo:
+        st.query_params.update({"editar": editar, "usuario": usuario})  # força persistência imediata
         st.subheader(f"✏️ Editar Ativo — {ativo['Ticker']}")
-
         with st.form("form_editar", clear_on_submit=False):
             data = st.text_input("Data de Compra (formato: DD/MM/YY)", value=ativo["Data de Compra"])
             quantidade = st.number_input("Quantidade", min_value=0, step=1, value=ativo["Quantidade"], format="%d")

@@ -164,7 +164,7 @@ else:
     usuario = st.session_state.usuario
 
 # 🔁 Atualiza a URL com ?usuario=... para manter persistência mesmo após reload
-if "usuario" in st.session_state:
+if "usuario" in st.session_state and st.session_state.usuario:
     st.query_params.update({"usuario": st.session_state.usuario})
 
 # Botão de Logout no topo da sidebar
@@ -602,6 +602,7 @@ if ticker:
             try:
                 ativo = yf.Ticker(ticker)
                 info = ativo.info
+                moeda = info.get("currency", "USD")
 
                 preco_atual = ativo.history(period="1d")["Close"].dropna().iloc[-1]
                 preco_alvo = info.get("targetMeanPrice")
@@ -628,10 +629,10 @@ if ticker:
                     st.markdown(
                         f"""
                         <div style='font-size: 18px;'>
-                            Preço atual: {preco_formatado} USD  
-                            <br>Preço-alvo médio: {alvo_formatado} USD
-                            <br>Preço-alvo máx.: {max_formatado} USD
-                            <br>Preço-alvo mín.: {min_formatado} USD
+                            Preço atual: {preco_formatado} {moeda}  
+                            <br>Preço-alvo médio: {alvo_formatado} {moeda}
+                            <br>Preço-alvo máx.: {max_formatado} {moeda}
+                            <br>Preço-alvo mín.: {min_formatado} {moeda}
                             <br><span style='color:{cor};'>Potencial: {sinal}{variacao:.2f}%</span>
                         </div>
                         """,

@@ -37,6 +37,15 @@ with st.sidebar:
 # 🔸 Carregar dados das vendas
 dados_vendas = carregar_vendas(usuario)
 
+# Ordenar por data de compra (mais antiga primeiro)
+def parse_data_compra(v):
+    try:
+        return datetime.strptime(v["data_compra"], "%Y-%m-%d")
+    except ValueError:
+        return datetime.strptime(v["data_compra"], "%d/%m/%y")
+
+dados_vendas.sort(key=parse_data_compra)
+
 remover_venda = st.query_params.get("remover_venda", None)
 if remover_venda is not None:
     deletar_venda(remover_venda)
@@ -83,12 +92,12 @@ for venda in dados_vendas:
     """.strip()
     valores = [
         acoes,
-        venda["data_compra"],
+        datetime.strptime(venda["data_compra"], "%Y-%m-%d").strftime("%d/%m/%y") if "-" in venda["data_compra"] else venda["data_compra"],
         venda["ticker"],
         quantidade,
         f"R$ {preco_compra:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
         f"R$ {preco_venda:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-        venda["data_venda"],
+        datetime.strptime(venda["data_venda"], "%Y-%m-%d").strftime("%d/%m/%y") if "-" in venda["data_venda"] else venda["data_venda"],
         f"<span style='color:{'limegreen' if cor == 'green' else 'red'}; font-weight: 600;'>{resultado_formatado}</span>"
     ]
 
@@ -131,6 +140,7 @@ for venda in dados_vendas:
                     "preco_venda": novo_preco_venda,
                     "data_venda": nova_data_venda.isoformat()
                 })
+                st.query_params.update({"usuario": usuario})
                 st.query_params.pop("editar_venda")
                 st.rerun()
 

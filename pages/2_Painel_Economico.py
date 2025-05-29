@@ -78,7 +78,7 @@ else:
     usuario = st.session_state.usuario
 
 # 🔁 Atualiza a URL com ?usuario=... para manter persistência mesmo após reload
-if "usuario" in st.session_state:
+if "usuario" in st.session_state and st.session_state.usuario:
     st.query_params.update({"usuario": st.session_state.usuario})
 
     if st.button("🚪 Logout"):
@@ -538,3 +538,5 @@ with st.expander("🏛️ Setores do S&P 500", expanded=True):
             )
         else:
             st.markdown(f"{nome} – Dados não disponíveis")
+
+# Remover qualquer uso de experimental_set_query_params ou experimental_get_query_params
