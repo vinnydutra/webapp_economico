@@ -1,3 +1,6 @@
+import streamlit as st
+
+st.set_page_config(page_title="Painel Econômico", page_icon="📈", layout="wide")
 import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -5,7 +8,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 import time
-import streamlit as st
 import yfinance as yf
 from datetime import datetime
 from utils import obter_usuario
@@ -50,25 +52,42 @@ def formatar_valor(valor, moeda=True, casas=2):
     else:
         return formato.format(valor).replace(",", "X").replace(".", ",").replace("X", ".")
 
-# ✅ Configuração da página
-st.set_page_config(page_title="Painel Econômico", page_icon="📈", layout="wide")
 
-# ✅ Persistência do usuário via URL
+# 🔗 Campo de entrada para o nome do usuário com persistência via URL
 query_params = st.query_params
-if "usuario" in query_params:
-    st.session_state.usuario = query_params["usuario"]
+usuario_inicial = query_params.get("usuario", st.session_state.get("usuario", ""))
 
-usuario = obter_usuario()
-st.query_params["usuario"] = usuario
+# Garante que o usuário passado via URL seja mantido na sessão
+if usuario_inicial and ("usuario" not in st.session_state or not st.session_state.usuario):
+    st.session_state.usuario = usuario_inicial.strip().lower()
 
-# ✅ Botão Logout no topo da sidebar
 with st.sidebar:
+    if not st.session_state.get("usuario"):
+        usuario_input = st.text_input("Informe seu nome de usuário:", value=usuario_inicial, key="usuario_input")
+    else:
+        st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
+
+if not st.session_state.get("usuario"):
+    usuario_input = st.session_state.get("usuario_input", "")
+    if usuario_input and usuario_input != usuario_inicial:
+        st.query_params.update({"usuario": usuario_input})
+        st.stop()
+    st.session_state.usuario = usuario_input
+    usuario = usuario_input
+else:
+    usuario = st.session_state.usuario
+
+# 🔁 Atualiza a URL com ?usuario=... para manter persistência mesmo após reload
+if "usuario" in st.session_state:
+    st.query_params.update({"usuario": st.session_state.usuario})
+
     if st.button("🚪 Logout"):
-        for chave in ["usuario", "carteira", "ticker"]:
+        for chave in ["usuario", "carteira", "ticker", "favoritos_analise"]:
             if chave in st.session_state:
                 del st.session_state[chave]
         st.query_params.clear()
-        st.rerun()
+        st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+        st.stop()
 
 with st.expander("🌍 Índices e Bolsas", expanded=True):
     st.markdown("")

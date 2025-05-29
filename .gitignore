@@ -1,0 +1,20 @@
+# Sistema
+.DS_Store
+*.log
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+
+# Streamlit
+.streamlit/
+
+# Dados locais de carteira
+carteira.json
+carteira_*.json
+
+# Ambiente virtual
+venv/

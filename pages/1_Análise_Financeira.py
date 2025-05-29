@@ -1,7 +1,3 @@
-def validar_favoritos(favoritos):
-    if not isinstance(favoritos, list):
-        return False
-    return all(isinstance(item, str) for item in favoritos)
 import json
 import os
 import streamlit as st
@@ -16,7 +12,13 @@ st.set_page_config(page_title="Dashboard Financeiro", page_icon="💰", layout="
 
 # Funções utilitárias centralizadas
 
-from utils import carregar_carteira, salvar_carteira, formatar_valor, obter_usuario
+from utils import (
+    carregar_favoritos,
+    adicionar_favorito,
+    remover_favorito,
+    formatar_valor,
+    obter_usuario
+)
 
 # Função de análise de dividendos
 def analisar_dividendos(dy, payout):
@@ -137,14 +139,33 @@ def analisar_endividamento(debt_to_equity, current_ratio, quick_ratio):
 
     return analise
 
-# --- Persistência do nome do usuário pela URL ---
+ # 🔗 Campo de entrada para o nome do usuário com persistência via URL
 query_params = st.query_params
+usuario_inicial = query_params.get("usuario", st.session_state.get("usuario", ""))
 
-if "usuario" in query_params:
-    st.session_state.usuario = query_params["usuario"]
+# Garante que o usuário passado via URL seja mantido na sessão
+if usuario_inicial and ("usuario" not in st.session_state or not st.session_state.usuario):
+    st.session_state.usuario = usuario_inicial.strip().lower()
 
-usuario = obter_usuario()
-st.query_params["usuario"] = usuario
+with st.sidebar:
+    if not st.session_state.get("usuario"):
+        usuario_input = st.text_input("Informe seu nome de usuário:", value=usuario_inicial, key="usuario_input")
+    else:
+        st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
+
+if not st.session_state.get("usuario"):
+    usuario_input = st.session_state.get("usuario_input", "")
+    if usuario_input and usuario_input != usuario_inicial:
+        st.query_params.update({"usuario": usuario_input})
+        st.stop()
+    st.session_state.usuario = usuario_input
+    usuario = usuario_input
+else:
+    usuario = st.session_state.usuario
+
+# 🔁 Atualiza a URL com ?usuario=... para manter persistência mesmo após reload
+if "usuario" in st.session_state:
+    st.query_params.update({"usuario": st.session_state.usuario})
 
 # Botão de Logout no topo da sidebar
 with st.sidebar:
@@ -153,7 +174,8 @@ with st.sidebar:
             if chave in st.session_state:
                 del st.session_state[chave]
         st.query_params.clear()
-        st.rerun()
+        st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+        st.stop()
 
 
 def buscar_fundacao(nome_empresa):
@@ -192,12 +214,8 @@ def buscar_fundacao(nome_empresa):
         return "Não disponível"
 
 
-import sys
-dados = carregar_carteira(usuario)
-
-# Inicializar favoritos_analise no session_state se necessário
 if "favoritos_analise" not in st.session_state:
-    st.session_state.favoritos_analise = dados.get("favoritos_analise", [])
+    st.session_state.favoritos_analise = carregar_favoritos(usuario)
 
 carteira = st.session_state.favoritos_analise
 
@@ -227,15 +245,14 @@ with col1:
             carteira.remove(ticker)
         else:
             carteira.append(ticker)
-        if validar_favoritos(carteira):
-            st.session_state.favoritos_analise = carteira
-            dados["favoritos_analise"] = carteira
-            salvar_carteira(dados, usuario)
-            estrela_ativa = not estrela_ativa
-            estrela = "⭐" if estrela_ativa else "☆"
-            st.rerun()
+        st.session_state.favoritos_analise = carteira
+        if estrela_ativa:
+            remover_favorito(usuario, ticker)
         else:
-            st.error("Erro: Dados da carteira estão corrompidos. Operação cancelada.")
+            adicionar_favorito(usuario, ticker)
+        estrela_ativa = not estrela_ativa
+        estrela = "⭐" if estrela_ativa else "☆"
+        st.rerun()
 
 with col2:
     st.markdown(
@@ -825,3 +842,10 @@ if ticker:
                 if st.button(sugestao, key=f"sugestao_{sugestao}"):
                     st.session_state.ticker = sugestao
                     st.rerun()
+
+
+# Redirecionamento automático após preenchimento do usuário (em caso de acesso direto)
+if not st.session_state.get("usuario") and usuario_input:
+    st.session_state.usuario = usuario_input
+    st.query_params.update({"usuario": usuario_input})
+    st.rerun()

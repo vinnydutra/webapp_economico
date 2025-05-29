@@ -10,15 +10,17 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Todas as funções agora dependem de uma variável 'usuario' que precisa ser capturada no início da execução via obter_usuario()
 
 # Função para capturar o nome do usuário
-def obter_usuario():
+def obter_usuario(usuario=None):
+    if usuario:
+        return usuario.strip().lower()
     if "usuario" not in st.session_state:
         usuario = st.sidebar.text_input("Digite seu nome de usuário:", key="usuario_input")
         if usuario:
-            st.session_state.usuario = usuario
+            st.session_state.usuario = usuario.strip().lower()
             st.rerun()
         else:
             st.stop()
-    return st.session_state.usuario
+    return st.session_state.usuario.strip().lower()
 
 
 # Função para gerar o caminho do arquivo da carteira com base no usuário
@@ -48,7 +50,7 @@ def salvar_carteira(dados, usuario):
 
 
 def carregar_carteira_supabase(usuario):
-    response = supabase.table("carteira").select("*").eq("usuario", usuario).execute()
+    response = supabase.table("carteira").select("id, ticker, quantidade, custo, data_compra, usuario").ilike("usuario", usuario).execute()
     if response.data:
         return response.data
     else:
@@ -66,17 +68,39 @@ def inserir_ativo_carteira(usuario, ticker, quantidade, custo, data_compra):
     supabase.table("carteira").insert(dados).execute()
 
 
-def deletar_ativo_carteira(usuario, ticker):
-    supabase.table("carteira").delete().eq("usuario", usuario).eq("ticker", ticker).execute()
+def deletar_ativo_carteira(uuid):
+    supabase.table("carteira").delete().eq("id", uuid).execute()
 
 
-def atualizar_ativo_carteira(usuario, ticker, quantidade, custo, data_compra):
+def atualizar_ativo_carteira(uuid, quantidade, custo, data_compra):
     dados = {
         "quantidade": quantidade,
         "custo": custo,
         "data_compra": data_compra
     }
-    supabase.table("carteira").update(dados).eq("usuario", usuario).eq("ticker", ticker).execute()
+    supabase.table("carteira").update(dados).eq("id", uuid).execute()
+
+
+# Funções para gerenciamento de favoritos no Supabase
+
+def carregar_favoritos(usuario):
+    response = supabase.table("favoritos").select("*").ilike("usuario", usuario).execute()
+    if response.data:
+        return [item["ticker"] for item in response.data]
+    else:
+        return []
+
+
+def adicionar_favorito(usuario, ticker):
+    dados = {
+        "usuario": usuario,
+        "ticker": ticker
+    }
+    supabase.table("favoritos").insert(dados).execute()
+
+
+def remover_favorito(usuario, ticker):
+    supabase.table("favoritos").delete().ilike("usuario", usuario).eq("ticker", ticker).execute()
 
 
 # Função utilitária para formatar grandes números com ou sem moeda
@@ -101,3 +125,41 @@ def formatar_valor(valor, moeda=True):
             return f"{valor/1_000_000:.2f} Milhões"
         else:
             return f"{valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+# Funções para gerenciamento de ativos vendidos
+
+def inserir_venda(usuario, ticker, quantidade, preco_compra, data_compra, preco_venda, data_venda):
+    try:
+        dados = {
+            "usuario": usuario,
+            "ticker": ticker,
+            "quantidade": quantidade,
+            "preco_compra": preco_compra,
+            "data_compra": data_compra,
+            "preco_venda": preco_venda,
+            "data_venda": data_venda
+        }
+        supabase.table("ativos_vendidos").insert(dados).execute()
+    except Exception as e:
+        print(f"Erro ao inserir venda: {e}")
+
+
+def carregar_vendas(usuario):
+    try:
+        response = supabase.table("ativos_vendidos").select("*").ilike("usuario", usuario).execute()
+        return response.data
+    except Exception as e:
+        print(f"Erro ao carregar vendas: {e}")
+        return []
+
+def deletar_venda(uuid):
+    supabase.table("ativos_vendidos").delete().eq("id", uuid).execute()
+
+
+# Função para editar vendas
+def editar_venda(uuid, novos_dados: dict):
+    try:
+        supabase.table("ativos_vendidos").update(novos_dados).eq("id", uuid).execute()
+    except Exception as e:
+        print(f"Erro ao editar venda: {e}")
