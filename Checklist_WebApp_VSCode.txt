@@ -1,4 +1,3 @@
-
 Checklist Definitivo – WebApp Econômico no VSCode
 
 1. Abrindo o Projeto
@@ -17,17 +16,29 @@ Checklist Definitivo – WebApp Econômico no VSCode
 
 4. Instalar Dependências
 - pip install -r requirements.txt
-- Gerar arquivo atualizado: pip freeze > requirements.txt
+- Atualizar arquivo requirements.txt: pip freeze > requirements.txt
+- Dica: Rode esse comando sempre após instalar ou atualizar pacotes no venv
 
 5. Pacotes Obrigatórios
-- streamlit, yfinance, plotly, wikipedia, pandas, selenium, webdriver-manager, beautifulsoup4
+- streamlit, yfinance, plotly, wikipedia, pandas, selenium, webdriver-manager, beautifulsoup4, pymupdf
+
+5.1 Pacotes Adicionais Importantes (Projeto Atual)
+- pymupdf (fitz): leitura de PDF das notas XP
+- supabase: integração com backend (usuários, ativos, tickers)
+- postgrest, gotrue, storage3: dependências internas do Supabase
 
 6. Ativar 'code' no terminal (se necessário)
 - No VSCode: Code -> Install 'code' command in PATH
 - Usar: code .
 
 7. Rodar o WebApp
-- streamlit run app.py
+- streamlit run 0_Início.py --logger.level=debug
+
+7.1 Comportamento Esperado no Upload
+- Após importar uma nota PDF, o sistema:
+  • Insere os ativos na base Supabase
+  • Mapeia tickers desconhecidos com input do usuário
+  • Reseta o formulário, limpando nome do arquivo e dados do upload
 
 8. Encerrar o WebApp
 - Ctrl + C
@@ -51,3 +62,10 @@ webapp_economico/
 - code não funciona -> Ativar via menu VSCode
 - Biblioteca faltando -> pip install -r requirements.txt
 - Python não aparece -> Cmd + Shift + P -> Python: Select Interpreter -> venv
+
+12. Dica para Configurar Projeto em Novo Computador
+- git clone <link-do-repositório>
+- cd webapp_economico
+- python3 -m venv venv && source venv/bin/activate
+- pip install -r requirements.txt
+- streamlit run app.py

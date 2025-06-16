@@ -1,41 +1,103 @@
 import streamlit as st
-from utils import carregar_vendas, deletar_venda
+from utils import carregar_vendas, deletar_venda, obter_total_dividendos_para_lote_intervalado
 from datetime import datetime
+
+
 
 st.set_page_config(page_title="Histórico de Vendas", layout="wide")
 
+# Remover margens laterais excessivas (mesmo CSS da Página 3)
+st.markdown("""
+    <style>
+    .main .block-container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+        padding-top: 0.5rem;
+        max-width: 100%;
+    }
+    .block-container {
+        max-width: 100%;
+        width: 100%;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# CSS para linhas da tabela (igual ao estilo da Página 3)
+st.markdown("""
+    <style>
+    .tabela-linha {
+        padding: 10px 6px;
+        border: 1px solid #444;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# CSS para cabeçalho de tabela (tabela-header) igual ao da Página 3
+st.markdown("""
+    <style>
+    .tabela-header {
+        font-weight: bold;
+        background-color: #262730;
+        padding: 8px;
+        border-bottom: 1px solid #444;
+        border: 1px solid #555;
+        text-align: center;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Verificar sessão do usuário e restaurar se necessário
+if "usuario" not in st.session_state or "uid" not in st.session_state:
+    from utils import restaurar_sessao_via_query_param
+    restaurar_sessao_via_query_param()
+    st.experimental_rerun()
+
 st.title("📜 Histórico de Vendas")
 
-# 🔗 Sincronização entre URL e sessão para o usuário
-query_params = st.query_params or {}
-usuario_inicial = query_params.get("usuario", st.session_state.get("usuario", ""))
-
-if usuario_inicial and ("usuario" not in st.session_state or not st.session_state.usuario):
-    st.session_state.usuario = usuario_inicial.strip().lower()
-
-# 🔁 Forçar sincronização da URL com o nome de usuário da sessão, se necessário
-if "usuario" in st.session_state and st.session_state.usuario and query_params.get("usuario") != st.session_state.usuario:
-    st.query_params.update({"usuario": st.session_state.usuario})
-    st.rerun()
-
 with st.sidebar:
-    if "usuario" not in st.session_state or not st.session_state.usuario:
-        usuario_input = st.text_input("Informe seu nome de usuário:", value=usuario_inicial, key="usuario_input")
-        if usuario_input and usuario_input != usuario_inicial:
-            st.query_params.update({"usuario": usuario_input})
-            st.session_state.usuario = usuario_input
-            st.rerun()
-        usuario = usuario_input
-    else:
-        st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
-        if st.button("🚪 Logout"):
-            st.session_state.clear()
-            st.markdown("<meta http-equiv='refresh' content='0;url=/?usuario=' />", unsafe_allow_html=True)
-            st.stop()
-        usuario = st.session_state.usuario
+    st.markdown("""
+        <style>
+            .user-block {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 10px;
+            }}
+            .user-email {{
+                color: #ccc;
+                font-size: 14px;
+                margin-right: 6px;
+            }}
+            .logout-btn {{
+                background: none;
+                border: none;
+                color: #ccc;
+                font-size: 18px;
+                cursor: pointer;
+                padding: 0;
+            }}
+            .logout-btn:hover {{
+                color: #fff;
+            }}
+        </style>
+        <div class="user-block">
+            <span class="user-email">👤 {}</span>
+            <form action='/?logout=true' method='get'>
+                <button type='submit' class="logout-btn" title="Logout">⏻</button>
+            </form>
+        </div>
+    """.format(st.session_state.get("usuario", "desconhecido")), unsafe_allow_html=True)
+
+    if st.query_params.get("logout") == "true":
+        for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
+            if chave in st.session_state:
+                del st.session_state[chave]
+        st.query_params.clear()
+        st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+        st.stop()
 
 # 🔸 Carregar dados das vendas
-dados_vendas = carregar_vendas(usuario)
+dados_vendas = carregar_vendas(st.session_state.uid)
 
 # Ordenar por data de compra (mais antiga primeiro)
 def parse_data_compra(v):
@@ -46,108 +108,231 @@ def parse_data_compra(v):
 
 dados_vendas.sort(key=parse_data_compra)
 
-remover_venda = st.query_params.get("remover_venda", None)
-if remover_venda is not None:
-    deletar_venda(remover_venda)
-    st.query_params.pop("remover_venda")
-    st.rerun()
-
-editar_venda_id = st.query_params.get("editar_venda", None)
+editar_venda_id = st.session_state.get("editar_venda_id")
 
 if not dados_vendas:
     st.info("Nenhuma venda registrada até o momento.")
     st.stop()
 
-# 🔢 Montar tabela formatada
-st.subheader("💼 Operações Realizadas")
+#
+# 📊 Balões de desempenho consolidados por ativo
+desempenho_ativos = {}
 
+for venda in dados_vendas:
+    ticker = venda["ticker"].strip().upper()
+    preco_compra = float(venda["preco_compra"])
+    preco_venda = float(venda["preco_venda"])
+    quantidade = int(venda["quantidade"])
+
+    if ticker not in desempenho_ativos:
+        desempenho_ativos[ticker] = {
+            "quantidade_total": 0,
+            "custo_total": 0.0,
+            "valor_venda_total": 0.0
+        }
+
+    desempenho_ativos[ticker]["quantidade_total"] += quantidade
+    desempenho_ativos[ticker]["custo_total"] += preco_compra * quantidade
+    desempenho_ativos[ticker]["valor_venda_total"] += preco_venda * quantidade
+
+# 🔥 Resultado total
 total_lucro = 0
+for venda in dados_vendas:
+    preco_compra = float(venda["preco_compra"])
+    preco_venda = float(venda["preco_venda"])
+    quantidade = int(venda["quantidade"])
+    data_compra = venda["data_compra"]
+    data_venda = venda["data_venda"]
+    ticker = venda["ticker"].strip().upper()
+    dividendos_recebidos = obter_total_dividendos_para_lote_intervalado(st.session_state.uid, ticker, data_compra, data_venda)
+    custo_ajustado = max(preco_compra - dividendos_recebidos, 0)
+    resultado = (preco_venda - custo_ajustado) * quantidade
+    total_lucro += resultado
 
-# Cabeçalho
-cols_header = st.columns([2.2, 2, 2.8, 2.4, 2.4, 2.6, 2.4, 3.2])
-headers = ["", "Compra", "Ticker", "Quant.", "Compra (R$)", "Venda (R$)", "Venda", "Resultado (R$)"]
-for i, (col, header) in enumerate(zip(cols_header, headers)):
-    if i == 0:
-        col.markdown("<p style='text-align: center; margin: 0; white-space: nowrap;'>&nbsp;</p>", unsafe_allow_html=True)
-    else:
-        col.markdown(f"<div style='margin: 2px 0; padding: 0; line-height: 1.1;'><b>{header}</b></div>", unsafe_allow_html=True)
+st.markdown("---")
+cor_final = "green" if total_lucro >= 0 else "red"
+st.markdown(
+    f"###  Resultado Total: <span style='color:{cor_final};'>R$ {total_lucro:,.2f}</span>".replace(",", "X").replace(".", ",").replace("X", "."),
+    unsafe_allow_html=True
+)
+st.markdown("###  Desempenho Consolidado por Ativo")
 
-# Linhas
+baloes_html = []
+for ticker, dados in desempenho_ativos.items():
+    quantidade = dados["quantidade_total"]
+    total_compra = dados["custo_total"]
+    total_venda = dados["valor_venda_total"]
+    resultado = total_venda - total_compra
+    variacao_percentual = (resultado / total_compra) * 100 if total_compra > 0 else 0
+
+    cor_resultado = "#00FF00"
+    cor_percentual = "#00FF00"
+
+    sinal_resultado = "+" if resultado > 0 else ""
+    sinal_percentual = "+" if variacao_percentual > 0 else ""
+
+    variacao_valor = f"{sinal_resultado}R$ {resultado:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+    variacao_pct = f"{sinal_percentual}{variacao_percentual:.1f}%".replace('.', ',')
+
+    link = f"/Analise_Financeira?ticker={ticker}"
+    baloes_html.append((resultado, f"""
+<a href='{link}' target='_self' style='text-decoration: none;'>
+  <div style="background-color:#262730; border-radius:10px; padding:8px; margin:5px 5px 0 0; text-align:center; display:inline-block; min-width:120px;">
+    <div style="color:white; font-weight:700; font-size:17px;">{ticker}</div>
+    <div style="color:{cor_percentual}; font-weight:700; font-size:16px;">{variacao_pct}</div>
+    <div style="color:{cor_resultado}; font-weight:700; font-size:16px;">{variacao_valor}</div>
+  </div>
+</a>
+"""))
+
+ # Ordenar por variação percentual descrescente
+baloes_html.sort(
+    key=lambda x: float(
+        x[1].split('font-size:16px;">')[1].split('%')[0].replace(",", ".")
+    ), reverse=True
+)
+html_final = "".join([b[1] for b in baloes_html])
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+st.markdown(html_final, unsafe_allow_html=True)
+
+
+# 🆕 NOVO BLOCO – Operações Realizadas (Novo Estilo)
+st.markdown("---")
+st.subheader("🧾 Operações Realizadas")
+
+if st.session_state.get("editar_venda_id") is None:
+    acao_id = st.query_params.get("acao")
+    if acao_id:
+        st.session_state["editar_venda_id"] = acao_id
+        st.rerun()
+
+nova_cols_header = st.columns([1.5, 1.2, 1.6, 1.6, 1.6, 1.8, 1.4, 1.4, 1.0])
+nova_headers = ["Ticker", "Quant.", "Custo", "Total", "Venda", "Resultado", "Data C.", "Data V.", "Ação"]
+
+for col, header in zip(nova_cols_header, nova_headers):
+    col.markdown(f"<div class='tabela-header'>{header}</div>", unsafe_allow_html=True)
+
 for venda in dados_vendas:
     preco_compra = float(venda["preco_compra"])
     preco_venda = float(venda["preco_venda"])
     quantidade = int(venda["quantidade"])
 
-    resultado = (preco_venda - preco_compra) * quantidade
-    total_lucro += resultado
+    data_compra = venda["data_compra"]
+    data_venda = venda["data_venda"]
+    ticker = venda["ticker"].strip().upper()
+    # Corrigir chamada para aplicar filtro correto ao intervalo:
+    dividendos_recebidos = obter_total_dividendos_para_lote_intervalado(
+        st.session_state.uid,
+        ticker,
+        data_compra,
+        data_venda
+    )
+    custo_ajustado = max(preco_compra - dividendos_recebidos, 0)
 
+    resultado = (preco_venda - custo_ajustado) * quantidade
+    cor = "#00cc00" if resultado >= 0 else "#ff3333"
     resultado_formatado = f"R$ {resultado:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-    cor = "green" if resultado >= 0 else "red"
-    acoes = f"""
-    <div style='display: flex; justify-content: center; align-items: center; gap: 10px; height: 100%;'>
-        <a href='?usuario={usuario}&remover_venda={venda['id']}' target="_self" style='color:red; text-decoration:none; font-size:18px;'>ⓧ</a>
-        <a href='?usuario={usuario}&editar_venda={venda["id"]}' target="_self" style='color:#1a73e8; text-decoration:none; font-size:18px;'>✏️</a>
-    </div>
-    """.strip()
+    total_formatado = f"R$ {(custo_ajustado * quantidade):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    col_acao = venda["id"]  # Usado como referência de ID para botão
+
+    # Exibir célula “Custo” com * e tooltip quando houver ajuste:
+    if dividendos_recebidos > 0:
+        custo_cell = (
+            f"<span title='Custo real: R$ {preco_compra:,.2f} | Dividendos: R$ {dividendos_recebidos:,.2f}'>R$ {custo_ajustado:,.2f}*</span>"
+        ).replace(",", "X").replace(".", ",").replace("X", ".")
+    else:
+        custo_cell = f"R$ {preco_compra:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
     valores = [
-        acoes,
-        datetime.strptime(venda["data_compra"], "%Y-%m-%d").strftime("%d/%m/%y") if "-" in venda["data_compra"] else venda["data_compra"],
-        venda["ticker"],
+        ticker,
         quantidade,
-        f"R$ {preco_compra:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+        custo_cell,
+        total_formatado,
         f"R$ {preco_venda:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
-        datetime.strptime(venda["data_venda"], "%Y-%m-%d").strftime("%d/%m/%y") if "-" in venda["data_venda"] else venda["data_venda"],
-        f"<span style='color:{'limegreen' if cor == 'green' else 'red'}; font-weight: 600;'>{resultado_formatado}</span>"
+        f"<span style='color:{cor}; font-weight:600;'>{resultado_formatado}</span>",
+        datetime.strptime(data_compra, "%Y-%m-%d").strftime("%d/%m/%y") if "-" in data_compra else data_compra,
+        datetime.strptime(data_venda, "%Y-%m-%d").strftime("%d/%m/%y") if "-" in data_venda else data_venda,
+        col_acao
     ]
 
-    cols = st.columns([2.2, 2, 2.8, 2.4, 2.4, 2.6, 2.4, 3])
-    for col, val in zip(cols, valores):
-        col.markdown(f"<div style='margin: 2px 0; padding: 0; line-height: 1.1;'>{val}</div>", unsafe_allow_html=True)
+    linha = st.columns([1.5, 1.2, 1.6, 1.6, 1.6, 1.8, 1.4, 1.4, 1.0])
+    for i, (col, val) in enumerate(zip(linha, valores)):
+        if i == 8:  # coluna "Ação"
+            with col:
+                # Renderizar botão diretamente, sem colunas internas
+                if st.button("⚙️", key=f"acao_{col_acao}"):
+                    st.session_state["editar_venda_id"] = col_acao
+                    st.session_state["modo_edicao"] = False
+                    st.rerun()
+        else:
+            col.markdown(f"<div class='tabela-linha'>{val}</div>", unsafe_allow_html=True)
 
-    # Formulário de edição logo abaixo da venda correspondente
-    if editar_venda_id and editar_venda_id.strip().lower() == str(venda["id"]).strip().lower():
-        with st.form(f"form_edicao_{venda['id']}"):
-            st.markdown("**✏️ Editar Venda:**")
-            try:
-                data_compra_formatada = datetime.strptime(venda["data_compra"], "%Y-%m-%d").date()
-            except ValueError:
-                data_compra_formatada = datetime.strptime(venda["data_compra"], "%d/%m/%y").date()
+    # Se a linha está em modo edição, renderizar botões de ação (Editar, Excluir, Cancelar)
+    if st.session_state.get("editar_venda_id") == venda["id"] and not st.session_state.get("modo_edicao"):
+        with st.container():
+            botoes = st.columns([0.2, 0.2, 0.2, 0.4])
+            with botoes[0]:
+                if st.button("✏️ Editar", key=f"editar_{venda['id']}"):
+                    st.session_state["modo_edicao"] = True
+                    st.rerun()
+            with botoes[1]:
+                if st.button("ⓧ Excluir", key=f"excluir_{venda['id']}"):
+                    deletar_venda(venda["id"])
+                    st.session_state.pop("editar_venda_id", None)
+                    st.rerun()
+            with botoes[3]:
+                if st.button("↩️ Cancelar", key=f"cancelar_{venda['id']}"):
+                    st.session_state.pop("editar_venda_id", None)
+                    st.rerun()
 
-            data_compra_str = st.text_input("Data de Compra (DD/MM/YY)", value=data_compra_formatada.strftime("%d/%m/%y"))
-            nova_data_compra = datetime.strptime(data_compra_str, "%d/%m/%y").date()
-            novo_ticker = st.text_input("Ticker", value=venda["ticker"])
-            nova_quantidade = st.number_input("Quantidade", min_value=1, value=int(venda["quantidade"]), step=1)
-            novo_preco_compra = st.number_input("Preço de Compra", min_value=0.0, format="%.2f", value=float(venda["preco_compra"]))
-            novo_preco_venda = st.number_input("Preço de Venda", min_value=0.0, format="%.2f", value=float(venda["preco_venda"]))
+    # Bloco de formulário de edição deve ser fora do bloco acima
+    if st.session_state.get("modo_edicao") and st.session_state.get("editar_venda_id") == venda["id"]:
+        with st.form(key=f"form_editar_{venda['id']}"):
+            col1, col2, col3, col4, col5 = st.columns([1.1, 1.1, 1.1, 1.3, 1.3])
 
-            try:
-                data_venda_formatada = datetime.strptime(venda["data_venda"], "%Y-%m-%d").date()
-            except ValueError:
-                data_venda_formatada = datetime.strptime(venda["data_venda"], "%d/%m/%y").date()
+            with col1:
+                nova_quantidade = st.number_input("Quantidade", min_value=1, value=quantidade, step=1)
 
-            data_venda_str = st.text_input("Data de Venda (DD/MM/YY)", value=data_venda_formatada.strftime("%d/%m/%y"))
-            nova_data_venda = datetime.strptime(data_venda_str, "%d/%m/%y").date()
+            with col2:
+                novo_preco_compra = st.number_input("Preço de Compra", min_value=0.0, value=preco_compra, step=0.01, format="%.2f")
 
-            submit = st.form_submit_button("Salvar alterações")
-            if submit:
-                from utils import editar_venda
-                editar_venda(venda["id"], {
-                    "data_compra": nova_data_compra.isoformat(),
-                    "ticker": novo_ticker.strip().upper(),
-                    "quantidade": nova_quantidade,
-                    "preco_compra": novo_preco_compra,
-                    "preco_venda": novo_preco_venda,
-                    "data_venda": nova_data_venda.isoformat()
-                })
-                st.query_params.update({"usuario": usuario})
-                st.query_params.pop("editar_venda")
-                st.rerun()
+            with col3:
+                novo_preco_venda = st.number_input("Preço de Venda", min_value=0.0, value=preco_venda, step=0.01, format="%.2f")
 
-# 🔥 Resultado total
-st.markdown("---")
-cor_final = "green" if total_lucro >= 0 else "red"
-st.markdown(
-    f"### 💰 Resultado Total: <span style='color:{cor_final};'>R$ {total_lucro:,.2f}</span>".replace(",", "X").replace(".", ",").replace("X", "."),
-    unsafe_allow_html=True
-)
+            with col4:
+                nova_data_compra = st.date_input(
+                    "Data de Compra",
+                    value=datetime.strptime(data_compra, "%Y-%m-%d") if "-" in data_compra else datetime.strptime(data_compra, "%d/%m/%y"),
+                    format="DD/MM/YYYY"
+                )
+
+            with col5:
+                nova_data_venda = st.date_input(
+                    "Data de Venda",
+                    value=datetime.strptime(data_venda, "%Y-%m-%d") if "-" in data_venda else datetime.strptime(data_venda, "%d/%m/%y"),
+                    format="DD/MM/YYYY"
+                )
+
+            col1, col2, col3 = st.columns([3, 10, 2])
+            with col1:
+                if st.form_submit_button("💾 Salvar Alterações"):
+                    from utils import atualizar_venda
+                    atualizar_venda(
+                        id=venda["id"],
+                        preco_compra=novo_preco_compra,
+                        preco_venda=novo_preco_venda,
+                        quantidade=nova_quantidade,
+                        data_compra=nova_data_compra.strftime("%Y-%m-%d"),
+                        data_venda=nova_data_venda.strftime("%Y-%m-%d")
+                    )
+                    st.success("Venda atualizada com sucesso!")
+                    st.session_state.pop("editar_venda_id", None)
+                    st.session_state.pop("modo_edicao", None)
+                    st.rerun()
+            with col3:
+                if st.form_submit_button("↩️ Cancelar"):
+                    st.session_state.pop("editar_venda_id", None)
+                    st.session_state.pop("modo_edicao", None)
+                    st.rerun()

@@ -1,5 +1,3 @@
-import json
-import os
 import streamlit as st
 import yfinance as yf
 from datetime import datetime
@@ -8,16 +6,22 @@ import plotly.express as px
 import wikipedia
 import re
 
+# Restaura token de sessão antes de qualquer chamada ao Supabase
+from utils import restaurar_usuario_sessao
+restaurar_usuario_sessao()
+
+
 st.set_page_config(page_title="Dashboard Financeiro", page_icon="💰", layout="wide")
 
 # Funções utilitárias centralizadas
-
 from utils import (
     carregar_favoritos,
     adicionar_favorito,
     remover_favorito,
     formatar_valor,
-    obter_usuario
+    obter_usuario,
+    supabase_autenticado,
+    traduzir_recomendacao,
 )
 
 # Função de análise de dividendos
@@ -139,38 +143,44 @@ def analisar_endividamento(debt_to_equity, current_ratio, quick_ratio):
 
     return analise
 
- # 🔗 Campo de entrada para o nome do usuário com persistência via URL
-query_params = st.query_params
-usuario_inicial = query_params.get("usuario", st.session_state.get("usuario", ""))
-
-# Garante que o usuário passado via URL seja mantido na sessão
-if usuario_inicial and ("usuario" not in st.session_state or not st.session_state.usuario):
-    st.session_state.usuario = usuario_inicial.strip().lower()
 
 with st.sidebar:
-    if not st.session_state.get("usuario"):
-        usuario_input = st.text_input("Informe seu nome de usuário:", value=usuario_inicial, key="usuario_input")
-    else:
-        st.markdown(f"👤 Usuário: **{st.session_state.usuario}**")
+    st.markdown("""
+        <style>
+            .user-block {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 12px 10px;
+                /* border-bottom: 1px solid #444; */
+            }}
+            .user-email {{
+                color: #ccc;
+                font-size: 14px;
+                margin-right: 6px;
+            }}
+            .logout-btn {{
+                background: none;
+                border: none;
+                color: #ccc;
+                font-size: 18px;
+                cursor: pointer;
+                padding: 0;
+            }}
+            .logout-btn:hover {{
+                color: #fff;
+            }}
+        </style>
+        <div class="user-block">
+            <span class="user-email">👤 {}</span>
+            <form action='/?logout=true' method='get'>
+                <button type='submit' class="logout-btn" title="Logout">⏻</button>
+            </form>
+        </div>
+    """.format(st.session_state.get("usuario", "desconhecido")), unsafe_allow_html=True)
 
-if not st.session_state.get("usuario"):
-    usuario_input = st.session_state.get("usuario_input", "")
-    if usuario_input and usuario_input != usuario_inicial:
-        st.query_params.update({"usuario": usuario_input})
-        st.stop()
-    st.session_state.usuario = usuario_input
-    usuario = usuario_input
-else:
-    usuario = st.session_state.usuario
-
-# 🔁 Atualiza a URL com ?usuario=... para manter persistência mesmo após reload
-if "usuario" in st.session_state and st.session_state.usuario:
-    st.query_params.update({"usuario": st.session_state.usuario})
-
-# Botão de Logout no topo da sidebar
-with st.sidebar:
-    if st.button("🚪 Logout"):
-        for chave in ["usuario", "carteira", "ticker", "favoritos_analise"]:
+    if st.query_params.get("logout") == "true":
+        for chave in ["usuario", "carteira", "ticker", "favoritos_analise", "uid"]:
             if chave in st.session_state:
                 del st.session_state[chave]
         st.query_params.clear()
@@ -214,16 +224,19 @@ def buscar_fundacao(nome_empresa):
         return "Não disponível"
 
 
-if "favoritos_analise" not in st.session_state:
-    st.session_state.favoritos_analise = carregar_favoritos(usuario)
 
-carteira = st.session_state.favoritos_analise
+
+if "uid" in st.session_state and st.session_state.uid:
+    if "favoritos_analise" not in st.session_state or not isinstance(st.session_state["favoritos_analise"], list):
+        st.session_state["favoritos_analise"] = carregar_favoritos(st.session_state.uid)
+else:
+    st.warning("Usuário não autenticado. Faça login para acessar a carteira.")
+    st.stop()
+
+carteira = st.session_state.get("favoritos_analise", [])
 
 if 'ticker' not in st.session_state:
     st.session_state.ticker = "PETR4.SA"
-
-if st.query_params.get("ticker"):
-    st.session_state.ticker = st.query_params["ticker"]
 
 # Campo de busca de ticker na barra lateral
 ticker = st.sidebar.text_input(
@@ -233,7 +246,6 @@ ticker = st.sidebar.text_input(
 st.session_state.ticker = ticker
 ticker = st.session_state.ticker
 
-st.sidebar.caption("Exemplos: PETR4.SA, VALE3.SA, AAPL, TSLA")
 
 col1, col2 = st.columns([1, 10])
 
@@ -247,9 +259,13 @@ with col1:
             carteira.append(ticker)
         st.session_state.favoritos_analise = carteira
         if estrela_ativa:
-            remover_favorito(usuario, ticker)
+            remover_favorito(ticker)
         else:
-            adicionar_favorito(usuario, ticker)
+            # Verifica autenticação antes de favoritar
+            if not supabase_autenticado():
+                st.error("Você não está autenticado. Faça login para favoritar ativos.")
+            else:
+                adicionar_favorito(ticker)
         estrela_ativa = not estrela_ativa
         estrela = "⭐" if estrela_ativa else "☆"
         st.rerun()
@@ -262,7 +278,21 @@ with col2:
         unsafe_allow_html=True
     )
 
-st.sidebar.subheader("📂 Carteira")
+st.markdown("""
+<style>
+section[data-testid="stSidebar"] h2 {
+    margin-bottom: 2px !important;
+}
+section[data-testid="stSidebar"] .block-container > div {
+    margin-top: 0px !important;
+    padding-top: 0px !important;
+}
+section[data-testid="stSidebar"] {
+    padding-top: 0px !important;
+    margin-top: 0px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Ordenar tickers
 tickers_ordenados = sorted(carteira)
@@ -292,54 +322,11 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
-#
-# st.sidebar.markdown(
-#     """
-#     <style>
-#     /* Forçar todos os textos dentro dos botões da sidebar */
-#     section[data-testid="stSidebar"] button * {
-#         font-size: 1.05rem !important;
-#         line-height: 1.2 !important;
-#     }
-#
-#     section[data-testid="stSidebar"] button {
-#         background-color: transparent;
-#         color: white;
-#         border: 1px solid white;
-#         border-radius: 8px;
-#         padding: 10px 16px;
-#         cursor: pointer;
-#     }
-#
-#     section[data-testid="stSidebar"] button:hover {
-#         background-color: rgba(255, 255, 255, 0.15);
-#     }
-#     </style>
-#     """,
-#     unsafe_allow_html=True
-# )
-#
-#
-# st.markdown(
-#     """
-#     <style>
-#     /* 🔧 Manter sempre visível o botão de expandir/recolher sidebar */
-#     div[data-testid="collapsedControl"] {
-#         visibility: visible;
-#         opacity: 1;
-#         min-height: 32px;
-#         height: 32px;
-#         transition: none;
-#     }
-#     </style>
-#     """,
-#     unsafe_allow_html=True
-# )
 
 
 
 
- # CSS aprimorado para os botões da sidebar e espaçamento dos balões de análise
+# CSS aprimorado para os botões da sidebar e espaçamento dos balões de análise
 st.sidebar.markdown(
     """
     <style>
@@ -382,33 +369,73 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# Gerar os botões com estilo aprimorado
-botoes_html = "".join([
-    f'<a href="?ticker={ticker_item}&usuario={usuario}" target="_self" class="sidebar-botao">{ticker_item}</a>'
-    for ticker_item in tickers_ordenados
-])
+st.markdown("""
+<style>
+/* Estilo para botões dos tickers na sidebar */
+div.botao-ticker-container button {
+    display: inline-block !important;
+    width: auto !important;
+    margin: 0px 6px 0px 0 !important;
+    white-space: nowrap;
+    padding: 8px 14px !important;
+    border-radius: 8px !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: white !important;
+    font-size: 1rem !important;
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.5) !important;
+    text-align: center !important;
+}
 
-st.sidebar.markdown(
-    f"""
-    <div class="sidebar-container">
-        {botoes_html}
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+div.botao-ticker-container button:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.7) !important;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.7) !important;
+}
 
-periodo = st.sidebar.selectbox(
-    "Selecione o período para análise:",
-    ("7d", "1mo", "3mo"),
-    index=1
-)
+div.botao-ticker-container button:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+with st.sidebar:
+    st.markdown("""
+<div style='margin-bottom: -6px; line-height: 1.2; font-weight: bold;'>Favoritos:</div>
+""", unsafe_allow_html=True)
+    st.markdown("""
+        <style>
+        .botao-ticker-grupo button {
+            font-size: 0.2rem !important;
+            padding: 2px 4px !important;
+        }
+        .botao-ticker-grupo {
+            margin-top: -4px !important;
+            padding-top: 0px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    st.markdown('<div class="botao-ticker-grupo">', unsafe_allow_html=True)
+    for i in range(0, len(tickers_ordenados), 2):
+        col1, col2, col3 = st.columns([4, 6, 1])
+        for j, col in enumerate([col1, col2]):
+            if i + j < len(tickers_ordenados):
+                ticker_item = tickers_ordenados[i + j]
+                with col:
+                    if st.button(ticker_item, key=f"botao_ticker_{ticker_item}"):
+                        st.session_state.ticker = ticker_item
+                        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 if ticker:
     try:
         acao = yf.Ticker(ticker)
-        historico = acao.history(period=periodo)
+        historico = acao.history(period="1mo")
         info = acao.info
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
         st.markdown(
             f"""
             <div style='
@@ -418,6 +445,7 @@ if ticker:
                 border-radius: 8px;
                 border: 1px solid rgba(255, 255, 255, 0.3);
                 box-shadow: 0px 0px 8px rgba(0,0,0,0.6);
+                margin-top: -36px;
                 margin-bottom: 10px;
             '>
                 ✅ Dados coletados em {agora} &nbsp;&nbsp;|&nbsp;&nbsp; <a href="https://finance.yahoo.com/quote/{ticker}" target="_blank" style="color: white; text-decoration: underline;">Yahoo! Finance</a>
@@ -426,31 +454,33 @@ if ticker:
             unsafe_allow_html=True
         )
 
-        # formatar_valor agora importado de utils
-
-        # Bandas de Bollinger
-        if periodo == "7d":
-            janela = 5
-        else:
-            janela = 20
+        janela = 20  # janela padrão fixa
         historico['MA'] = historico['Close'].rolling(window=janela).mean()
         historico['Upper'] = historico['MA'] + 2 * historico['Close'].rolling(window=janela).std()
         historico['Lower'] = historico['MA'] - 2 * historico['Close'].rolling(window=janela).std()
 
-        # RSI
         delta = historico['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         historico['RSI'] = 100 - (100 / (1 + rs))
 
-        # MACD
         exp1 = historico['Close'].ewm(span=12, adjust=False).mean()
         exp2 = historico['Close'].ewm(span=26, adjust=False).mean()
         historico['MACD'] = exp1 - exp2
         historico['Signal'] = historico['MACD'].ewm(span=9, adjust=False).mean()
 
         dados_ultimos = acao.history(period="5d").dropna()
+
+        # Definir proximo_resultado antes do bloco st.container()
+        proximo_resultado = info.get('nextEarningsDate') or info.get('earningsTimestamp')
+        if proximo_resultado:
+            try:
+                proximo_resultado = datetime.fromtimestamp(proximo_resultado).strftime('%d/%m/%Y')
+            except:
+                proximo_resultado = str(proximo_resultado)
+        else:
+            proximo_resultado = "Não disponível"
 
         with st.container():
             col1, col2 = st.columns(2)
@@ -550,27 +580,50 @@ if ticker:
                     """,
                     unsafe_allow_html=True
                 )
+                # Espaço extra visual entre a tabela de preços e o próximo bloco
+                st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+                st.markdown(f"**📅 Próxima divulgação de resultados:** {proximo_resultado}")
 
             with col2:
-                st.subheader("Dados da Empresa")
-                st.markdown(f"**Empresa:** {info.get('shortName', 'Não disponível')}")
-                st.markdown(f"**Setor:** {info.get('sector', 'Não disponível')}")
-                st.markdown(f"**País:** {info.get('country', 'Não disponível')}")
-                st.markdown(f"**Moeda:** {info.get('currency', 'Não disponível')}")
-                valor_mercado = info.get('marketCap')
-                st.markdown(f"**Valor de mercado:** {formatar_valor(valor_mercado)}")
+                st.subheader("Consenso das Casas de Análise")
 
-                funcionarios = info.get('fullTimeEmployees')
-                if funcionarios:
-                    funcionarios = f"{funcionarios:,}".replace(",", ".")
-                else:
-                    funcionarios = "Não disponível"
-                st.markdown(f"**Funcionários:** {funcionarios}")
+                # Conteúdo do antigo expander "📊 Consenso das Casas de Análise" agora aqui:
+                try:
+                    preco_atual = historico['Close'].iloc[-1]
+                    preco_alvo = info.get("targetMeanPrice")
+                    preco_alvo_max = info.get("targetHighPrice")
+                    preco_alvo_min = info.get("targetLowPrice")
+                    numero_analistas = info.get("numberOfAnalystOpinions")
+                    consenso = traduzir_recomendacao(info.get("recommendationKey", ""))
 
+                    if preco_alvo and numero_analistas:
+                        variacao = ((preco_alvo - preco_atual) / preco_atual) * 100
+                        sinal = "+" if variacao >= 0 else ""
+                        cor = "#00FF00" if variacao >= 0 else "#FF4C4C"
+
+                        st.markdown(f"- **Recomendação geral:** {consenso}")
+                        st.markdown(f"- **Número de analistas:** {numero_analistas}")
+                        st.markdown(
+                            f"""
+                            <div style='font-size: 18px;'>
+                                Preço atual: {preco_atual:.2f}  
+                                <br>Preço-alvo médio: {preco_alvo:.2f}
+                                <br>Preço-alvo máx.: {preco_alvo_max:.2f}
+                                <br>Preço-alvo mín.: {preco_alvo_min:.2f}
+                                <br><span style='color:{cor};'>Potencial: {sinal}{variacao:.2f}%</span>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown("❌ Dados de consenso não disponíveis para este ativo.")
+                except Exception as e:
+                    st.markdown(f"❌ Erro ao obter dados de consenso: {e}")
+
+            # === Bloco "Sobre a Empresa" movido para logo após a tabela de preços ===
+            with st.expander("📝 Sobre a Empresa"):
                 data_fundacao = buscar_fundacao(info.get('shortName', ticker))
-                st.markdown(f"**Fundação:** {data_fundacao}")
 
-                # 🔍 CEO automático (se disponível)
                 ceo = "Não disponível"
                 officers = info.get('companyOfficers')
                 if officers and isinstance(officers, list):
@@ -578,78 +631,35 @@ if ticker:
                         if officer.get('title') and 'CEO' in officer.get('title'):
                             ceo = officer.get('name', 'Não disponível')
                             break
-                st.markdown(f"**CEO:** {ceo}")
-
 
                 descricao = info.get('longBusinessSummary', 'Descrição não disponível')
 
-                proximo_resultado = info.get('nextEarningsDate') or info.get('earningsTimestamp')
-                if proximo_resultado:
-                    try:
-                        proximo_resultado = datetime.fromtimestamp(proximo_resultado).strftime('%d/%m/%Y')
-                    except:
-                        proximo_resultado = str(proximo_resultado)
-                else:
-                    proximo_resultado = "Não disponível"
-                st.markdown(f"**📅 Próxima divulgação de resultados:** {proximo_resultado}")
+                col_esq, col_dir = st.columns(2)
 
-                with st.expander("📝 Sobre a Empresa"):
-                    st.markdown(descricao)
+                with col_esq:
+                    st.markdown(f"**Empresa:** {info.get('shortName', 'Não disponível')}")
+                    st.markdown(f"**Setor:** {info.get('sector', 'Não disponível')}")
+                    st.markdown(f"**País:** {info.get('country', 'Não disponível')}")
+                    st.markdown(f"**Moeda:** {info.get('currency', 'Não disponível')}")
+                    st.markdown(f"**Fundação:** {data_fundacao}")
 
-        # === Bloco Consenso das Casas de Análise (novo) ===
+                with col_dir:
+                    valor_mercado = info.get('marketCap')
+                    st.markdown(f"**Valor de mercado:** {formatar_valor(valor_mercado)}")
+                    funcionarios = info.get('fullTimeEmployees')
+                    if funcionarios:
+                        funcionarios = f"{funcionarios:,}".replace(',', '.')
+                    else:
+                        funcionarios = "Não disponível"
+                    st.markdown(f"**Funcionários:** {funcionarios}")
+                    st.markdown(f"**CEO:** {ceo}")
 
-        with st.expander("📊 Consenso das Casas de Análise", expanded=False):
-            try:
-                ativo = yf.Ticker(ticker)
-                info = ativo.info
-                moeda = info.get("currency", "USD")
+                st.markdown(descricao)
 
-                preco_atual = ativo.history(period="1d")["Close"].dropna().iloc[-1]
-                preco_alvo = info.get("targetMeanPrice")
-                preco_alvo_max = info.get("targetHighPrice")
-                preco_alvo_min = info.get("targetLowPrice")
-                numero_analistas = info.get("numberOfAnalystOpinions")
-                consenso = info.get("recommendationKey", "").capitalize()
 
-                if preco_alvo and numero_analistas:
-                    variacao = ((preco_alvo - preco_atual) / preco_atual) * 100
-                    sinal = "+" if variacao >= 0 else ""
-                    cor = "#00FF00" if variacao >= 0 else "#FF4C4C"
-
-                    preco_formatado = formatar_valor(preco_atual, moeda=False)
-                    alvo_formatado = formatar_valor(preco_alvo, moeda=False)
-                    max_formatado = formatar_valor(preco_alvo_max, moeda=False)
-                    min_formatado = formatar_valor(preco_alvo_min, moeda=False)
-
-                    st.subheader(f"Consenso para {ticker}")
-
-                    st.markdown(f"- **Recomendação geral:** {consenso}")
-                    st.markdown(f"- **Número de analistas:** {numero_analistas}")
-
-                    st.markdown(
-                        f"""
-                        <div style='font-size: 18px;'>
-                            Preço atual: {preco_formatado} {moeda}  
-                            <br>Preço-alvo médio: {alvo_formatado} {moeda}
-                            <br>Preço-alvo máx.: {max_formatado} {moeda}
-                            <br>Preço-alvo mín.: {min_formatado} {moeda}
-                            <br><span style='color:{cor};'>Potencial: {sinal}{variacao:.2f}%</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown("❌ Dados de consenso não disponíveis para este ativo.")
-
-            except Exception as e:
-                st.markdown(f"❌ Erro ao obter dados de consenso: {e}")
-
-        # === Bloco Métricas de Mercado e Projeções (novo) ===
+        # === Bloco Métricas de Mercado e Projeções ===
         with st.expander("📈 Métricas de Mercado e Projeções", expanded=False):
             try:
-                ativo = yf.Ticker(ticker)
-                info = ativo.info
-
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
@@ -665,46 +675,27 @@ if ticker:
                         </ul>
                         </div>
                     """, unsafe_allow_html=True)
-                    # Bloco de análise Crescimento
-                    earnings_growth = info.get('earningsGrowth', 0)
-                    revenue_growth = info.get('revenueGrowth', 0)
-                    roe = info.get('returnOnEquity', 0)
-                    roa = info.get('returnOnAssets', 0)
-                    profit_margin = info.get('profitMargins', 0)
-
-                    analise_crescimento = analisar_crescimento(earnings_growth, revenue_growth, roe, roa, profit_margin)
-
-                    st.markdown(f"""
-<div class="sidebar-analysis" style='background-color:#2a2a2a; padding:12px; border-radius:8px; margin-top:10px;'>
-<b>📊 Análise:</b><br>
-{analise_crescimento}
-</div>
-""", unsafe_allow_html=True)
+                    st.markdown(analisar_crescimento(
+                        info.get('earningsGrowth',0),
+                        info.get('revenueGrowth',0),
+                        info.get('returnOnEquity',0),
+                        info.get('returnOnAssets',0),
+                        info.get('profitMargins',0)
+                    ))
 
                 with col2:
-                    # Calcula os valores de Dividend Yield e Payout Ratio para exibição e análise
                     dy = info.get('dividendYield', 0)
                     payout = info.get('payoutRatio', 0) * 100
-
                     st.markdown(f"""
                         <div class="sidebar-card" style='background-color:#1e1e1e; padding:16px; border-radius:10px; box-shadow:0px 0px 6px rgba(0,0,0,0.5);'>
                         <h3>💰 Dividendos</h3>
                         <ul>
                             <li><strong>Dividend Yield:</strong> {round(dy, 2)}%</li>
-                            <li><strong>Yield 5 anos:</strong> {round(info.get('fiveYearAvgDividendYield',0),2)}%</li>
                             <li><strong>Payout Ratio:</strong> {round(payout,2)}%</li>
                         </ul>
                         </div>
                     """, unsafe_allow_html=True)
-                    # Bloco de análise Dividendos
-                    analise_dividendos = analisar_dividendos(dy, payout)
-
-                    st.markdown(f"""
-<div class="sidebar-analysis" style='background-color:#2a2a2a; padding:12px; border-radius:8px; margin-top:10px;'>
-<b>📊 Análise:</b><br>
-{analise_dividendos}
-</div>
-""", unsafe_allow_html=True)
+                    st.markdown(analisar_dividendos(dy, payout))
 
                 with col3:
                     st.markdown(f"""
@@ -717,22 +708,14 @@ if ticker:
                         </ul>
                         </div>
                     """, unsafe_allow_html=True)
-                    # Bloco de análise Endividamento
-                    debt_to_equity = info.get('debtToEquity', 0)
-                    current_ratio = info.get('currentRatio', 0)
-                    quick_ratio = info.get('quickRatio', 0)
-
-                    analise_endividamento = analisar_endividamento(debt_to_equity, current_ratio, quick_ratio)
-
-                    st.markdown(f"""
-<div class="sidebar-analysis" style='background-color:#2a2a2a; padding:12px; border-radius:8px; margin-top:10px;'>
-<b>📊 Análise:</b><br>
-{analise_endividamento}
-</div>
-""", unsafe_allow_html=True)
-
+                    st.markdown(analisar_endividamento(
+                        info.get('debtToEquity',0),
+                        info.get('currentRatio',0),
+                        info.get('quickRatio',0)
+                    ))
             except Exception as e:
                 st.markdown(f"❌ Erro ao obter métricas de mercado: {e}")
+
 
         # CSS para uniformizar o espaçamento entre títulos e listas dos cards (sidebar-card)
         st.markdown(
@@ -845,8 +828,7 @@ if ticker:
                     st.rerun()
 
 
-# Redirecionamento automático após preenchimento do usuário (em caso de acesso direto)
-if not st.session_state.get("usuario") and usuario_input:
-    st.session_state.usuario = usuario_input
-    st.query_params.update({"usuario": usuario_input})
-    st.rerun()
+# Verificação de segurança complementar: garante que os botões só renderizem quando favoritos estiverem prontos
+if "favoritos_analise" not in st.session_state or not isinstance(st.session_state.favoritos_analise, list):
+    st.warning("⏳ Carregando carteira...")
+    st.stop()
