@@ -18,3 +18,9 @@ carteira_*.json
 
 # Ambiente virtual
 venv/
+venv/
+.venv/
+__pycache__/
+.DS_Store
+*.tar.gz
+setuptools-*/
