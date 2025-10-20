@@ -69,3 +69,33 @@ webapp_economico/
 - python3 -m venv venv && source venv/bin/activate
 - pip install -r requirements.txt
 - streamlit run app.py
+
+13. Atualizar Projeto e Publicar no GitHub + Streamlit
+
+13.1 Passos para publicar alterações no GitHub
+
+- Ative o ambiente virtual:
+  source venv/bin/activate
+
+- (Opcional) Atualize o arquivo requirements.txt, se tiver instalado novos pacotes:
+  pip freeze > requirements.txt
+
+- Verifique alterações:
+  git status
+
+- Adicione todos os arquivos modificados:
+  git add .
+
+- Faça commit com uma mensagem clara:
+  git commit -m "Mensagem descritiva da atualização"
+
+- Envie para o GitHub:
+  git push
+
+13.2 Tornar alterações visíveis no Streamlit Cloud
+
+- Após o push para o GitHub, o app será recarregado automaticamente em até 2 minutos.
+- Para forçar a atualização manual:
+  1. Acesse https://streamlit.io/cloud
+  2. Clique no seu app
+  3. Menu inferior direito (⋯) > “Rerun” ou “Restart”

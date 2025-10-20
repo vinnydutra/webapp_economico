@@ -7,6 +7,33 @@ from datetime import datetime
 
 st.set_page_config(page_title="Dividendos", page_icon="💰", layout="wide")
 
+# Verificar sessão e exibir usuário com botão de logout no topo da tela
+if "usuario" not in st.session_state or not st.session_state.usuario:
+    st.info("Usuário não autenticado.")
+    st.stop()
+usuario_logado = st.session_state.get("usuario", "desconhecido")
+
+# Lógica de logout
+if st.query_params.get("logout") == "true":
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.query_params.clear()
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
+
+# Bloco visual do nome do usuário com botão ⏻
+st.markdown(f"""
+<br>
+<br>
+<div style='display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 0px;'>
+    <span style='color: #ccc; font-size: 14px;'>👤 {usuario_logado}</span>
+    <form action='/?logout=true' method='get'>
+        <button type='submit' title='Logout' style='background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer;'>⏻</button>
+    </form>
+</div>
+""", unsafe_allow_html=True)
+
 # Normaliza o espaçamento superior da página
 st.markdown("""
     <style>
@@ -16,48 +43,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Bloco de usuário e logout padronizado na sidebar
-with st.sidebar:
-    st.markdown("""
-        <style>
-            .user-block {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 12px 10px;
-            }}
-            .user-email {{
-                color: #ccc;
-                font-size: 14px;
-                margin-right: 6px;
-            }}
-            .logout-btn {{
-                background: none;
-                border: none;
-                color: #ccc;
-                font-size: 18px;
-                cursor: pointer;
-                padding: 0;
-            }}
-            .logout-btn:hover {{
-                color: #fff;
-            }}
-        </style>
-        <div class="user-block">
-            <span class="user-email">👤 {}</span>
-            <form action='/?logout=true' method='get'>
-                <button type='submit' class="logout-btn" title="Logout">⏻</button>
-            </form>
-        </div>
-    """.format(st.session_state.get("usuario", "desconhecido")), unsafe_allow_html=True)
-
-    if st.query_params.get("logout") == "true":
-        for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
-            if chave in st.session_state:
-                del st.session_state[chave]
-        st.query_params.clear()
-        st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
-        st.stop()
 
 # Captura do usuário logado (padrão do app)
 if (

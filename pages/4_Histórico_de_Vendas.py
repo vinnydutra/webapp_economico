@@ -1,103 +1,110 @@
 import streamlit as st
-from utils import carregar_vendas, deletar_venda, obter_total_dividendos_para_lote_intervalado
+from utils import carregar_vendas, deletar_venda, obter_total_dividendos_para_lote_intervalado, obter_credito_opcoes_para_lote_intervalado
 from datetime import datetime
+from utils import get_logo_img_tag
 
 
 
 st.set_page_config(page_title="Histórico de Vendas", layout="wide")
 
-# Remover margens laterais excessivas (mesmo CSS da Página 3)
+# CSS para remover margens laterais e limitações de largura, e ajustar espaçamento superior
 st.markdown("""
-    <style>
-    .main .block-container {
-        padding-left: 1rem;
-        padding-right: 1rem;
-        padding-top: 0.5rem;
-        max-width: 100%;
-    }
-    .block-container {
-        max-width: 100%;
-        width: 100%;
-    }
-    </style>
+<style>
+/* Remove margens laterais e limitações de largura em qualquer versão do Streamlit */
+main > div.block-container, section.main > div.block-container, .block-container {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    max-width: 100% !important;
+    padding-top: 1rem;
+}
+</style>
 """, unsafe_allow_html=True)
 
-# CSS para linhas da tabela (igual ao estilo da Página 3)
 st.markdown("""
-    <style>
-    .tabela-linha {
-        padding: 10px 6px;
-        border: 1px solid #444;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# CSS para cabeçalho de tabela (tabela-header) igual ao da Página 3
-st.markdown("""
-    <style>
-    .tabela-header {
-        font-weight: bold;
-        background-color: #262730;
-        padding: 8px;
-        border-bottom: 1px solid #444;
-        border: 1px solid #555;
-        text-align: center;
-    }
-    </style>
+<style>
+/* Tooltip padrão (mesmo estilo conceitual da Pág. 3) */
+.tipwrap {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+.tipwrap::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 125%;
+  background: #333;
+  color: #fff;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  border: 1px solid #444;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s ease-in-out;
+  z-index: 9999;
+  width: fit-content;
+}
+.tipwrap:hover::after {
+  opacity: 1;
+}
+</style>
 """, unsafe_allow_html=True)
 
 # Verificar sessão do usuário e restaurar se necessário
-if "usuario" not in st.session_state or "uid" not in st.session_state:
+if "usuario" not in st.session_state or not st.session_state.usuario:
+    st.info("Usuário não autenticado.")
+    st.stop()
+usuario_logado = st.session_state.get("usuario", "desconhecido")
+
+# Restaurar sessão via query_params se uid estiver ausente
+if "uid" not in st.session_state:
     from utils import restaurar_sessao_via_query_param
     restaurar_sessao_via_query_param()
     st.experimental_rerun()
 
-st.title("📜 Histórico de Vendas")
+# Lógica de logout
+if st.query_params.get("logout") == "true":
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.query_params.clear()
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
+
+# Bloco do usuário e logout no topo da tela
+st.markdown(f"""
+<br>
+<div style='display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 0px;'>
+    <span style='color: #ccc; font-size: 14px;'>👤 {usuario_logado}</span>
+    <form action='/?logout=true' method='get'>
+        <button type='submit' title='Logout' style='background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer;'>⏻</button>
+    </form>
+</div>
+""", unsafe_allow_html=True)
+
+# CSS para remover margem superior do título <h1> gerado por st.title
+st.markdown("""
+    <style>
+    h1 {
+        margin-top: 0rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
+st.title("Histórico de Vendas")
 
 with st.sidebar:
-    st.markdown("""
-        <style>
-            .user-block {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 12px 10px;
-            }}
-            .user-email {{
-                color: #ccc;
-                font-size: 14px;
-                margin-right: 6px;
-            }}
-            .logout-btn {{
-                background: none;
-                border: none;
-                color: #ccc;
-                font-size: 18px;
-                cursor: pointer;
-                padding: 0;
-            }}
-            .logout-btn:hover {{
-                color: #fff;
-            }}
-        </style>
-        <div class="user-block">
-            <span class="user-email">👤 {}</span>
-            <form action='/?logout=true' method='get'>
-                <button type='submit' class="logout-btn" title="Logout">⏻</button>
-            </form>
-        </div>
-    """.format(st.session_state.get("usuario", "desconhecido")), unsafe_allow_html=True)
-
-    if st.query_params.get("logout") == "true":
-        for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
-            if chave in st.session_state:
-                del st.session_state[chave]
-        st.query_params.clear()
-        st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
-        st.stop()
+    pass
 
 # 🔸 Carregar dados das vendas
-dados_vendas = carregar_vendas(st.session_state.uid)
+uid = st.session_state.get("uid")
+dados_vendas = carregar_vendas(uid) if uid else []
 
 # Ordenar por data de compra (mais antiga primeiro)
 def parse_data_compra(v):
@@ -106,7 +113,7 @@ def parse_data_compra(v):
     except ValueError:
         return datetime.strptime(v["data_compra"], "%d/%m/%y")
 
-dados_vendas.sort(key=parse_data_compra)
+dados_vendas.sort(key=lambda v: datetime.strptime(v["data_venda"], "%Y-%m-%d") if "-" in v["data_venda"] else datetime.strptime(v["data_venda"], "%d/%m/%y"), reverse=True)
 
 editar_venda_id = st.session_state.get("editar_venda_id")
 
@@ -123,6 +130,23 @@ for venda in dados_vendas:
     preco_compra = float(venda["preco_compra"])
     preco_venda = float(venda["preco_venda"])
     quantidade = int(venda["quantidade"])
+    data_compra = venda["data_compra"]
+    data_venda = venda["data_venda"]
+
+    dividendos_recebidos = obter_total_dividendos_para_lote_intervalado(
+        st.session_state.uid,
+        ticker,
+        data_compra,
+        data_venda
+    )
+    creditos_opcoes = obter_credito_opcoes_para_lote_intervalado(
+        st.session_state.uid,
+        ticker,
+        data_compra,
+        data_venda,
+        quantidade
+    )
+    custo_ajustado = max(preco_compra - dividendos_recebidos - creditos_opcoes, 0)
 
     if ticker not in desempenho_ativos:
         desempenho_ativos[ticker] = {
@@ -132,7 +156,7 @@ for venda in dados_vendas:
         }
 
     desempenho_ativos[ticker]["quantidade_total"] += quantidade
-    desempenho_ativos[ticker]["custo_total"] += preco_compra * quantidade
+    desempenho_ativos[ticker]["custo_total"] += custo_ajustado * quantidade
     desempenho_ativos[ticker]["valor_venda_total"] += preco_venda * quantidade
 
 # 🔥 Resultado total
@@ -145,7 +169,14 @@ for venda in dados_vendas:
     data_venda = venda["data_venda"]
     ticker = venda["ticker"].strip().upper()
     dividendos_recebidos = obter_total_dividendos_para_lote_intervalado(st.session_state.uid, ticker, data_compra, data_venda)
-    custo_ajustado = max(preco_compra - dividendos_recebidos, 0)
+    creditos_opcoes = obter_credito_opcoes_para_lote_intervalado(
+        st.session_state.uid,
+        ticker,
+        data_compra,
+        data_venda,
+        quantidade
+    )
+    custo_ajustado = max(preco_compra - dividendos_recebidos - creditos_opcoes, 0)
     resultado = (preco_venda - custo_ajustado) * quantidade
     total_lucro += resultado
 
@@ -165,8 +196,8 @@ for ticker, dados in desempenho_ativos.items():
     resultado = total_venda - total_compra
     variacao_percentual = (resultado / total_compra) * 100 if total_compra > 0 else 0
 
-    cor_resultado = "#00FF00"
-    cor_percentual = "#00FF00"
+    cor_resultado = "#00FF00" if resultado >= 0 else "#FF3333"
+    cor_percentual = "#00FF00" if variacao_percentual >= 0 else "#FF3333"
 
     sinal_resultado = "+" if resultado > 0 else ""
     sinal_percentual = "+" if variacao_percentual > 0 else ""
@@ -185,12 +216,8 @@ for ticker, dados in desempenho_ativos.items():
 </a>
 """))
 
- # Ordenar por variação percentual descrescente
-baloes_html.sort(
-    key=lambda x: float(
-        x[1].split('font-size:16px;">')[1].split('%')[0].replace(",", ".")
-    ), reverse=True
-)
+ # Ordenar por rentabilidade absoluta (em reais), da maior para a menor
+baloes_html.sort(key=lambda x: x[0], reverse=True)
 html_final = "".join([b[1] for b in baloes_html])
 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 st.markdown(html_final, unsafe_allow_html=True)
@@ -200,14 +227,32 @@ st.markdown(html_final, unsafe_allow_html=True)
 st.markdown("---")
 st.subheader("🧾 Operações Realizadas")
 
-if st.session_state.get("editar_venda_id") is None:
-    acao_id = st.query_params.get("acao")
-    if acao_id:
-        st.session_state["editar_venda_id"] = acao_id
-        st.rerun()
+# CSS reaplicado no local correto, antes da renderização da tabela
 
-nova_cols_header = st.columns([1.5, 1.2, 1.6, 1.6, 1.6, 1.8, 1.4, 1.4, 1.0])
-nova_headers = ["Ticker", "Quant.", "Custo", "Total", "Venda", "Resultado", "Data C.", "Data V.", "Ação"]
+st.markdown("""
+    <style>
+    .tabela-linha {
+        padding: 10px 6px;
+        border: 1px solid #444;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+    <style>
+    .tabela-header {
+        font-weight: bold;
+        background-color: #262730;
+        padding: 8px;
+        border-bottom: 1px solid #444;
+        border: 1px solid #555;
+        text-align: center;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+nova_cols_header = st.columns([1, 1.5, 1.2, 1.6, 1.6, 1.6, 1.8, 1.4, 1.4, 1.0])
+nova_headers = ["Logo", "Ticker", "Quant.", "Custo", "Total", "Venda", "Resultado", "Data C.", "Data V.", "Ação"]
 
 for col, header in zip(nova_cols_header, nova_headers):
     col.markdown(f"<div class='tabela-header'>{header}</div>", unsafe_allow_html=True)
@@ -227,7 +272,14 @@ for venda in dados_vendas:
         data_compra,
         data_venda
     )
-    custo_ajustado = max(preco_compra - dividendos_recebidos, 0)
+    creditos_opcoes = obter_credito_opcoes_para_lote_intervalado(
+        st.session_state.uid,
+        ticker,
+        data_compra,
+        data_venda,
+        quantidade
+    )
+    custo_ajustado = max(preco_compra - dividendos_recebidos - creditos_opcoes, 0)
 
     resultado = (preco_venda - custo_ajustado) * quantidade
     cor = "#00cc00" if resultado >= 0 else "#ff3333"
@@ -235,17 +287,26 @@ for venda in dados_vendas:
 
     total_formatado = f"R$ {(custo_ajustado * quantidade):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+
     col_acao = venda["id"]  # Usado como referência de ID para botão
 
+    logo_html = get_logo_img_tag(ticker)
+
     # Exibir célula “Custo” com * e tooltip quando houver ajuste:
-    if dividendos_recebidos > 0:
+    if (dividendos_recebidos > 0) or (creditos_opcoes > 0):
+        tooltip = (
+            f"Custo Base: R$ {preco_compra:,.2f} | "
+            f"Dividendos: R$ {dividendos_recebidos:,.2f} | "
+            f"Opções: R$ {creditos_opcoes:,.2f}"
+        )
         custo_cell = (
-            f"<span title='Custo real: R$ {preco_compra:,.2f} | Dividendos: R$ {dividendos_recebidos:,.2f}'>R$ {custo_ajustado:,.2f}*</span>"
+            f"<span class='tipwrap' data-tip='{tooltip}'>R$ {custo_ajustado:,.2f}*</span>"
         ).replace(",", "X").replace(".", ",").replace("X", ".")
     else:
         custo_cell = f"R$ {preco_compra:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     valores = [
+        f"<div style='text-align:center'>{logo_html}</div>",
         ticker,
         quantidade,
         custo_cell,
@@ -257,9 +318,9 @@ for venda in dados_vendas:
         col_acao
     ]
 
-    linha = st.columns([1.5, 1.2, 1.6, 1.6, 1.6, 1.8, 1.4, 1.4, 1.0])
+    linha = st.columns([1, 1.5, 1.2, 1.6, 1.6, 1.6, 1.8, 1.4, 1.4, 1.0])
     for i, (col, val) in enumerate(zip(linha, valores)):
-        if i == 8:  # coluna "Ação"
+        if i == 9:  # coluna "Ação"
             with col:
                 # Renderizar botão diretamente, sem colunas internas
                 if st.button("⚙️", key=f"acao_{col_acao}"):
@@ -290,7 +351,7 @@ for venda in dados_vendas:
     # Bloco de formulário de edição deve ser fora do bloco acima
     if st.session_state.get("modo_edicao") and st.session_state.get("editar_venda_id") == venda["id"]:
         with st.form(key=f"form_editar_{venda['id']}"):
-            col1, col2, col3, col4, col5 = st.columns([1.1, 1.1, 1.1, 1.3, 1.3])
+            col1, col2, col3, col4, col5, col6 = st.columns([1.0, 1.1, 1.1, 1.1, 1.3, 1.2])
 
             with col1:
                 nova_quantidade = st.number_input("Quantidade", min_value=1, value=quantidade, step=1)
@@ -315,6 +376,9 @@ for venda in dados_vendas:
                     format="DD/MM/YYYY"
                 )
 
+            with col6:
+                novo_irrf = st.number_input("IRRF (R$)", min_value=0.0, value=float(venda.get("irrf") or 0.0), step=0.01, format="%.2f")
+
             col1, col2, col3 = st.columns([3, 10, 2])
             with col1:
                 if st.form_submit_button("💾 Salvar Alterações"):
@@ -325,7 +389,8 @@ for venda in dados_vendas:
                         preco_venda=novo_preco_venda,
                         quantidade=nova_quantidade,
                         data_compra=nova_data_compra.strftime("%Y-%m-%d"),
-                        data_venda=nova_data_venda.strftime("%Y-%m-%d")
+                        data_venda=nova_data_venda.strftime("%Y-%m-%d"),
+                        irrf=novo_irrf
                     )
                     st.success("Venda atualizada com sucesso!")
                     st.session_state.pop("editar_venda_id", None)

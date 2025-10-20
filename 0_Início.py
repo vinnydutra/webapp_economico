@@ -24,6 +24,37 @@ st.set_page_config(
     layout="wide"
 )
 
+# Reduz espaçamento superior do container padrão do Streamlit
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Lógica de logout moderna
+if st.query_params.get("logout") == "true":
+    for key in ["usuario", "uid", "access_token"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.query_params.clear()
+    st.session_state._rerun = True
+    st.query_params.update({})
+    st.rerun()
+
+# Bloco do usuário e logout no topo da tela
+usuario_logado = st.session_state.get("usuario", "desconhecido")
+st.markdown(f"""
+<br>
+<div style='display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 0px;'>
+    <span style='color: #ccc; font-size: 14px;'>👤 {usuario_logado}</span>
+    <form action='/?logout=true' method='get'>
+        <button type='submit' title='Logout' style='background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer;'>⏻</button>
+    </form>
+</div>
+""", unsafe_allow_html=True)
+
 if st.session_state.get("_rerun"):
     st.session_state._rerun = False
     st.rerun()
@@ -87,52 +118,6 @@ if not st.session_state.usuario:
     st.stop()
 
 # === INTERFACE PÓS-LOGIN ===
-
-st.sidebar.markdown(
-    f"""
-    <style>
-        .user-block {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 10px;
-            /* border-bottom: 1px solid #444; */
-        }}
-        .user-email {{
-            color: #ccc;
-            font-size: 14px;
-            margin-right: 6px;
-        }}
-        .logout-btn {{
-            background: none;
-            border: none;
-            color: #ccc;
-            font-size: 18px;
-            cursor: pointer;
-            padding: 0;
-        }}
-        .logout-btn:hover {{
-            color: #fff;
-        }}
-    </style>
-    <div class="user-block">
-        <span class="user-email">👤 {st.session_state.usuario}</span>
-        <form action='/?logout=true' method='get'>
-            <button type='submit' class="logout-btn" title="Logout">⏻</button>
-        </form>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-if st.query_params.get("logout") == "true":
-    for key in ["usuario", "uid", "access_token"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.query_params.clear()
-    st.session_state._rerun = True
-    st.query_params.update({})  # remove o "?" da URL
-    st.rerun()
 
 # Navegação com parâmetros preservados
 usuario = st.session_state.usuario

@@ -13,6 +13,37 @@ restaurar_usuario_sessao()
 
 st.set_page_config(page_title="Dashboard Financeiro", page_icon="💰", layout="wide")
 
+# Reduz espaçamento superior do container padrão do Streamlit
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Bloco de usuário e logout com layout responsivo
+usuario_logado = st.session_state.get("usuario", "desconhecido")
+
+st.markdown(f"""
+<br>
+<div style='display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 12px;'>
+    <span style='color: #ccc; font-size: 14px;'>👤 {usuario_logado}</span>
+    <form action='/?logout=true' method='get'>
+        <button type='submit' title='Logout' style='background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer;'>⏻</button>
+    </form>
+</div>
+""", unsafe_allow_html=True)
+
+# Lógica de logout
+if st.query_params.get("logout") == "true":
+    for chave in ["usuario", "carteira", "ticker", "favoritos_analise", "uid"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.query_params.clear()
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
+
 # Funções utilitárias centralizadas
 from utils import (
     carregar_favoritos,
@@ -144,48 +175,6 @@ def analisar_endividamento(debt_to_equity, current_ratio, quick_ratio):
     return analise
 
 
-with st.sidebar:
-    st.markdown("""
-        <style>
-            .user-block {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 12px 10px;
-                /* border-bottom: 1px solid #444; */
-            }}
-            .user-email {{
-                color: #ccc;
-                font-size: 14px;
-                margin-right: 6px;
-            }}
-            .logout-btn {{
-                background: none;
-                border: none;
-                color: #ccc;
-                font-size: 18px;
-                cursor: pointer;
-                padding: 0;
-            }}
-            .logout-btn:hover {{
-                color: #fff;
-            }}
-        </style>
-        <div class="user-block">
-            <span class="user-email">👤 {}</span>
-            <form action='/?logout=true' method='get'>
-                <button type='submit' class="logout-btn" title="Logout">⏻</button>
-            </form>
-        </div>
-    """.format(st.session_state.get("usuario", "desconhecido")), unsafe_allow_html=True)
-
-    if st.query_params.get("logout") == "true":
-        for chave in ["usuario", "carteira", "ticker", "favoritos_analise", "uid"]:
-            if chave in st.session_state:
-                del st.session_state[chave]
-        st.query_params.clear()
-        st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
-        st.stop()
 
 
 def buscar_fundacao(nome_empresa):
@@ -239,15 +228,35 @@ if 'ticker' not in st.session_state:
     st.session_state.ticker = "PETR4.SA"
 
 # Campo de busca de ticker na barra lateral
-ticker = st.sidebar.text_input(
-    "Digite o ticker da ação:",
-    st.session_state.ticker
-).upper()
-st.session_state.ticker = ticker
 ticker = st.session_state.ticker
+# Ordenar tickers
+tickers_ordenados = sorted(carteira)
 
+# 🔝 Bloco de botões de favoritos no topo da página (fora da sidebar)
+if tickers_ordenados:
+    st.markdown("""
+    <style>
+        div[data-testid="stColumn"] {
+            width: fit-content !important;
+            flex: unset;
+        }
+        div[data-testid="stColumn"] * {
+            width: fit-content !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
-col1, col2 = st.columns([1, 10])
+    cols = st.columns(len(tickers_ordenados))
+    for col, ticker_item in zip(cols, tickers_ordenados):
+        with col:
+            if st.button(ticker_item, key=f"botao_topo_{ticker_item}", use_container_width=False):
+                st.session_state.ticker = ticker_item
+                st.rerun()
+
+    # Espaçamento vertical após os botões de tickers favoritos
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns([1, 5, 4])
 
 with col1:
     estrela_ativa = ticker in carteira
@@ -271,12 +280,32 @@ with col1:
         st.rerun()
 
 with col2:
+    # Exibe o ticker com o nome da empresa ao lado, estilizado
+    nome_empresa_topo = ""
+    try:
+        acao_tmp = yf.Ticker(ticker)
+        info_tmp = acao_tmp.info
+        nome_empresa_topo = info_tmp.get('shortName', '')
+    except Exception:
+        nome_empresa_topo = ""
     st.markdown(
         f"""
-        <h1 style='margin: 0; padding: 0; display: inline-block;'>{ticker}</h1>
+        <h1 style='margin: 0; padding: 0; display: inline-block;'>
+            {ticker} <span style='font-size: 16px; color: #aaa;'>({nome_empresa_topo})</span>
+        </h1>
         """,
         unsafe_allow_html=True
     )
+
+with col3:
+    novo_ticker = st.text_input(
+        "Digite o ticker:",
+        ticker,
+        label_visibility="collapsed"
+    ).upper()
+    if novo_ticker != ticker:
+        st.session_state.ticker = novo_ticker
+        st.rerun()
 
 st.markdown("""
 <style>
@@ -293,9 +322,6 @@ section[data-testid="stSidebar"] {
 }
 </style>
 """, unsafe_allow_html=True)
-
-# Ordenar tickers
-tickers_ordenados = sorted(carteira)
 
 # Blocos de CSS relacionados aos botões da sidebar e ao topo da página
 st.markdown(
@@ -327,7 +353,7 @@ st.markdown("""
 
 
 # CSS aprimorado para os botões da sidebar e espaçamento dos balões de análise
-st.sidebar.markdown(
+st.markdown(
     """
     <style>
     .sidebar-botao {
@@ -400,33 +426,6 @@ div.botao-ticker-container button:focus {
 </style>
 """, unsafe_allow_html=True)
 
-with st.sidebar:
-    st.markdown("""
-<div style='margin-bottom: -6px; line-height: 1.2; font-weight: bold;'>Favoritos:</div>
-""", unsafe_allow_html=True)
-    st.markdown("""
-        <style>
-        .botao-ticker-grupo button {
-            font-size: 0.2rem !important;
-            padding: 2px 4px !important;
-        }
-        .botao-ticker-grupo {
-            margin-top: -4px !important;
-            padding-top: 0px !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    st.markdown('<div class="botao-ticker-grupo">', unsafe_allow_html=True)
-    for i in range(0, len(tickers_ordenados), 2):
-        col1, col2, col3 = st.columns([4, 6, 1])
-        for j, col in enumerate([col1, col2]):
-            if i + j < len(tickers_ordenados):
-                ticker_item = tickers_ordenados[i + j]
-                with col:
-                    if st.button(ticker_item, key=f"botao_ticker_{ticker_item}"):
-                        st.session_state.ticker = ticker_item
-                        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 if ticker:
@@ -434,6 +433,7 @@ if ticker:
         acao = yf.Ticker(ticker)
         historico = acao.history(period="1mo")
         info = acao.info
+        nome_empresa_topo = info.get("shortName", "Empresa não identificada")
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
         st.markdown(

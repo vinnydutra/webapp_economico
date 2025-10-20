@@ -1,7 +1,48 @@
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder
 
+
 st.set_page_config(page_title="Painel Econômico", page_icon="📈", layout="wide")
+
+# Reduz espaçamento superior do container padrão do Streamlit
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# Lógica de logout (logo após set_page_config e antes de qualquer st.stop)
+if st.query_params.get("logout") == "true":
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.query_params.clear()
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
+
+# Bloco de usuário e logout com layout responsivo
+usuario_logado = st.session_state.get("usuario", "desconhecido")
+
+st.markdown(f"""
+<br>
+<div style='display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 12px;'>
+    <span style='color: #ccc; font-size: 14px;'>👤 {usuario_logado}</span>
+    <form action='/?logout=true' method='get'>
+        <button type='submit' title='Logout' style='background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer;'>⏻</button>
+    </form>
+</div>
+""", unsafe_allow_html=True)
+
+# Lógica de logout
+if st.query_params.get("logout") == "true":
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.query_params.clear()
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
 
 # Título principal da página
 st.markdown("# Painel Econômico")
@@ -66,48 +107,6 @@ with st.sidebar:
             st.session_state.uid = usuario_input.strip().lower()
             st.experimental_rerun()
         st.stop()
-    else:
-        st.markdown("""
-            <style>
-                .user-block {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 12px 10px;
-                    /* border-bottom: 1px solid #444; */
-                }}
-                .user-email {{
-                    color: #ccc;
-                    font-size: 14px;
-                    margin-right: 6px;
-                }}
-                .logout-btn {{
-                    background: none;
-                    border: none;
-                    color: #ccc;
-                    font-size: 18px;
-                    cursor: pointer;
-                    padding: 0;
-                }}
-                .logout-btn:hover {{
-                    color: #fff;
-                }}
-            </style>
-            <div class="user-block">
-                <span class="user-email">👤 {}</span>
-                <form action='/?logout=true' method='get'>
-                    <button type='submit' class="logout-btn" title="Logout">⏻</button>
-                </form>
-            </div>
-        """.format(st.session_state.get("usuario", "desconhecido")), unsafe_allow_html=True)
-
-        if st.query_params.get("logout") == "true":
-            for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
-                if chave in st.session_state:
-                    del st.session_state[chave]
-            st.query_params.clear()
-            st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
-            st.stop()
 
 with st.expander("💹 Variação dos Índices", expanded=False):
     st.markdown("")
