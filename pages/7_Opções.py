@@ -249,7 +249,7 @@ else:
         """, unsafe_allow_html=True)
 
         # Cabeçalho
-        header = st.columns([1.4, 1.0, 1.4, 1.0, 1.4, 1.8, 1.4, 1.4, 1.3, 1.3, 0.9])
+        header = st.columns([1.5, 1.0, 1.5, 1.0, 1.4, 1.8, 1.4, 1.4, 1.4, 1.4, 0.9])
         labels = ["Operação", "Tipo", "Ticker", "Qtd", "Prêmio", "Resul. (R$)", "Strike",
                   "À Vista", "Venci.", "Data", "⚙️"]
 
@@ -262,7 +262,7 @@ else:
                 custo_total = (row["Qtd"] * row["Prêmio (R$)"]) + row["Custo (R$)"]
             else:
                 custo_total = (row["Qtd"] * row["Prêmio (R$)"]) - row["Custo (R$)"]
-            cols = st.columns([1.4, 1.0, 1.4, 1.0, 1.4, 1.8, 1.4, 1.4, 1.3, 1.3, 0.9])
+            cols = st.columns([1.5, 1.0, 1.5, 1.0, 1.4, 1.8, 1.4, 1.4, 1.4, 1.4, 0.9])
             operacao = row["Operação"]
             is_coberta = row["Coberta?"] == "✔️" and operacao.lower() == "venda"
             tooltip = "Venda Coberta" if is_coberta else ""

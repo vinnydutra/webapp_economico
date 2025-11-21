@@ -186,43 +186,6 @@ st.markdown(
     f"###  Resultado Total: <span style='color:{cor_final};'>R$ {total_lucro:,.2f}</span>".replace(",", "X").replace(".", ",").replace("X", "."),
     unsafe_allow_html=True
 )
-st.markdown("###  Desempenho Consolidado por Ativo")
-
-baloes_html = []
-for ticker, dados in desempenho_ativos.items():
-    quantidade = dados["quantidade_total"]
-    total_compra = dados["custo_total"]
-    total_venda = dados["valor_venda_total"]
-    resultado = total_venda - total_compra
-    variacao_percentual = (resultado / total_compra) * 100 if total_compra > 0 else 0
-
-    cor_resultado = "#00FF00" if resultado >= 0 else "#FF3333"
-    cor_percentual = "#00FF00" if variacao_percentual >= 0 else "#FF3333"
-
-    sinal_resultado = "+" if resultado > 0 else ""
-    sinal_percentual = "+" if variacao_percentual > 0 else ""
-
-    variacao_valor = f"{sinal_resultado}R$ {resultado:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-    variacao_pct = f"{sinal_percentual}{variacao_percentual:.1f}%".replace('.', ',')
-
-    link = f"/Analise_Financeira?ticker={ticker}"
-    baloes_html.append((resultado, f"""
-<a href='{link}' target='_self' style='text-decoration: none;'>
-  <div style="background-color:#262730; border-radius:10px; padding:8px; margin:5px 5px 0 0; text-align:center; display:inline-block; min-width:120px;">
-    <div style="color:white; font-weight:700; font-size:17px;">{ticker}</div>
-    <div style="color:{cor_percentual}; font-weight:700; font-size:16px;">{variacao_pct}</div>
-    <div style="color:{cor_resultado}; font-weight:700; font-size:16px;">{variacao_valor}</div>
-  </div>
-</a>
-"""))
-
- # Ordenar por rentabilidade absoluta (em reais), da maior para a menor
-baloes_html.sort(key=lambda x: x[0], reverse=True)
-html_final = "".join([b[1] for b in baloes_html])
-st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-st.markdown(html_final, unsafe_allow_html=True)
-
-
 # 🆕 NOVO BLOCO – Operações Realizadas (Novo Estilo)
 st.markdown("---")
 st.subheader("🧾 Operações Realizadas")

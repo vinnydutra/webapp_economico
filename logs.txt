@@ -1,0 +1,1011 @@
+2025-10-24 12:47:26.406 Not hashing _supabase because it starts with _
+2025-10-24 12:47:26.407 Cache key: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:26.407 Memory cache HIT: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:26.407 Not hashing _supabase because it starts with _
+2025-10-24 12:47:26.407 Cache key: d9e1bc6a40ff139ac0b49f84869adaca
+2025-10-24 12:47:26.407 Memory cache HIT: d9e1bc6a40ff139ac0b49f84869adaca
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.082s, total=0.00
+2025-10-24 12:47:26.482 Creating new DataCache (key=81c632fa0eb1d9425b5a229ffa712e93, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:26.483 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:26.483 Memory cache MISS: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:26.483 Memory cache MISS: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:26.490 Not hashing _supabase because it starts with _
+2025-10-24 12:47:26.491 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:26.491 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:26.491 Creating new DataCache (key=c6fc2faae10df34d43a7f22cfc6b315b, persist=None, max_entries=None, ttl=300)
+2025-10-24 12:47:26.491 Cache key: 11765751bea1f527163aca6e5cd6a985
+2025-10-24 12:47:26.491 Memory cache MISS: 11765751bea1f527163aca6e5cd6a985
+2025-10-24 12:47:26.491 Memory cache MISS: 11765751bea1f527163aca6e5cd6a985
+2025-10-24 12:47:29.476 Creating new DataCache (key=6b620b391fdbd7a9c2f84a5f6eb222ea, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:29.476 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.476 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.477 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.486 Not hashing _supabase because it starts with _
+2025-10-24 12:47:29.486 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:29.486 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:29.488 Creating new DataCache (key=e56231f85235d21a746dca8ca10095ad, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:29.488 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.488 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.489 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.718 Creating new DataCache (key=bdfa26edf5e0f4bee650b5d7c0bdb063, persist=None, max_entries=None, ttl=120)
+2025-10-24 12:47:29.719 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.719 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.719 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:29.912 Creating new DataCache (key=6553d6566579bd658e803904bd70a587, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:29.912 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:29.912 Memory cache MISS: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:29.912 Memory cache MISS: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:29.921 Not hashing _supabase because it starts with _
+2025-10-24 12:47:29.921 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:29.921 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:29.921 Not hashing _supabase because it starts with _
+2025-10-24 12:47:29.921 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:29.921 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:30.046 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.046 Cache key: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:30.046 Memory cache HIT: b68002484d1fd6e62dc6277d72faa0f3
+[PERF] calcular_carry_ir_sub10[fii].iters=1 TOTAL: 0.125s, total=0.00
+2025-10-24 12:47:30.098 Creating new DataCache (key=82d4b66f050fe076f263fc6607931d20, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:30.099 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:30.099 Memory cache MISS: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:30.099 Memory cache MISS: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:30.217 Creating new DataCache (key=34d036cb173524511bed72a91cd7ce7a, persist=None, max_entries=None, ttl=60)
+2025-10-24 12:47:30.217 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:30.217 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:30.217 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:30.217 Cache key: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:30.217 Memory cache MISS: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:30.217 Memory cache MISS: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:30.226 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.226 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:30.226 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:30.226 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.226 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:30.226 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:30.368 Creating new DataCache (key=1ff42e3b721edc7c4657e4489a23a2a9, persist=None, max_entries=None, ttl=60)
+2025-10-24 12:47:30.368 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:30.368 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:30.368 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:30.369 Cache key: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:30.369 Memory cache MISS: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:30.369 Memory cache MISS: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:30.378 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.378 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.378 Memory cache MISS: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.378 Memory cache MISS: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.378 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.378 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.378 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.378 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.378 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.378 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.378 Memory cache MISS: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.378 Memory cache MISS: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.379 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.379 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.379 Memory cache MISS: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.379 Memory cache MISS: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.379 Cache key: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:30.379 Memory cache MISS: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:30.379 Memory cache MISS: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:30.388 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.388 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.388 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.388 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.388 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.388 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=0
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=4
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=4
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.002s
+2025-10-24 12:47:30.390 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.390 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.390 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.390 Memory cache MISS: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.390 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.390 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:30.390 Memory cache HIT: b00818fca2ff10c80533126edcefce8b
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.118s
+[PERF] apurar_base_regime_mes.TOTAL: 0.294s
+[PERF] apurar_compensacao_mes.TOTAL: 0.359s
+2025-10-24 12:47:30.747 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.748 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:30.748 Memory cache HIT: 6450541f6872b85562e41e79c0d18706
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.055s, total=0.00
+2025-10-24 12:47:30.911 Cache key: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:30.911 Memory cache MISS: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:30.911 Memory cache MISS: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:30.921 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.921 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.921 Memory cache MISS: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.921 Memory cache MISS: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.921 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.921 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.921 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.921 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.922 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.922 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.922 Memory cache MISS: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.922 Memory cache MISS: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.923 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.923 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.923 Memory cache MISS: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.923 Memory cache MISS: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:30.923 Cache key: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:30.923 Memory cache MISS: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:30.923 Memory cache MISS: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:30.934 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.934 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.934 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.934 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.934 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.934 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=0
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=3
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=3
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.002s
+2025-10-24 12:47:30.937 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.937 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.937 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.937 Memory cache MISS: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.937 Not hashing _supabase because it starts with _
+2025-10-24 12:47:30.937 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:30.937 Memory cache HIT: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.111s
+[PERF] apurar_base_regime_mes.TOTAL: 0.271s
+[PERF] apurar_compensacao_mes.TOTAL: 0.325s
+2025-10-24 12:47:31.260 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.261 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:31.261 Memory cache HIT: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:31.312 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.312 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:31.312 Memory cache HIT: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:31.313 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.313 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:31.313 Memory cache HIT: 6450541f6872b85562e41e79c0d18706
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.052s, total=0.00
+2025-10-24 12:47:31.469 Cache key: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:31.469 Memory cache MISS: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:31.469 Memory cache MISS: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:31.479 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.479 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.479 Memory cache MISS: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.479 Memory cache MISS: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.479 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.479 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.479 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.479 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.480 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.480 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.480 Memory cache MISS: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.480 Memory cache MISS: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.480 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.480 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.480 Memory cache MISS: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.481 Memory cache MISS: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.481 Cache key: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:31.481 Memory cache MISS: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:31.481 Memory cache MISS: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:31.486 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.486 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.486 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.486 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.487 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.487 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.487 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.487 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=1
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=3
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=4
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.001s
+2025-10-24 12:47:31.488 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.488 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.488 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.488 Memory cache MISS: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.488 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.488 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:31.488 Memory cache HIT: 76ce10c146d1adb6dba19597eb4abc4c
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.106s
+[PERF] apurar_base_regime_mes.TOTAL: 0.279s
+[PERF] apurar_compensacao_mes.TOTAL: 0.335s
+2025-10-24 12:47:31.823 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.823 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.823 Memory cache HIT: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:31.874 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.874 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:31.874 Memory cache HIT: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:31.875 Not hashing _supabase because it starts with _
+2025-10-24 12:47:31.875 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:31.875 Memory cache HIT: cce9e2928370b8d76870e78d58eb2e1f
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.052s, total=0.00
+2025-10-24 12:47:31.994 Cache key: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:31.994 Memory cache MISS: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:31.994 Memory cache MISS: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:32.004 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.004 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.004 Memory cache MISS: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.004 Memory cache MISS: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.005 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.005 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.005 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.005 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.005 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.005 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.005 Memory cache MISS: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.005 Memory cache MISS: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.006 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.006 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.006 Memory cache MISS: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.006 Memory cache MISS: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.006 Cache key: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:32.006 Memory cache MISS: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:32.007 Memory cache MISS: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:32.016 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.016 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.016 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.016 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.016 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.017 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.017 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.017 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=0
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=7
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=7
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.002s
+2025-10-24 12:47:32.019 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.019 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.019 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.019 Memory cache MISS: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.019 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.019 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:32.019 Memory cache HIT: b38d6bd25cfc7f867a9518ca8c1a9cce
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.121s
+[PERF] apurar_base_regime_mes.TOTAL: 0.351s
+[PERF] apurar_compensacao_mes.TOTAL: 0.412s
+2025-10-24 12:47:32.429 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.429 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.429 Memory cache HIT: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:32.531 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.531 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:32.531 Memory cache HIT: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:32.531 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.531 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:32.532 Memory cache HIT: c6da16b31261d96fea4224a36f22dd77
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.103s, total=0.00
+2025-10-24 12:47:32.670 Cache key: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:32.670 Memory cache MISS: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:32.671 Memory cache MISS: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:32.680 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.680 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.680 Memory cache MISS: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.680 Memory cache MISS: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.680 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.680 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.680 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.680 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.681 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.681 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.681 Memory cache MISS: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.681 Memory cache MISS: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.682 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.682 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.682 Memory cache MISS: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.682 Memory cache MISS: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:32.682 Cache key: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:32.682 Memory cache MISS: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:32.682 Memory cache MISS: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:32.690 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.690 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.690 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.691 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.691 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.691 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.691 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=0
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=5
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=5
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.002s
+2025-10-24 12:47:32.693 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.693 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.693 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.693 Memory cache MISS: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.693 Not hashing _supabase because it starts with _
+2025-10-24 12:47:32.693 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:32.693 Memory cache HIT: 2770d58f7d581dd1e80e578fc86c20a6
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.119s
+[PERF] apurar_base_regime_mes.TOTAL: 0.301s
+[PERF] apurar_compensacao_mes.TOTAL: 0.359s
+2025-10-24 12:47:33.050 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.050 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:33.050 Memory cache HIT: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:33.111 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.111 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:33.111 Memory cache HIT: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:33.111 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.111 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:33.111 Memory cache HIT: c31841a2d546327acb5297b5fa421452
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.061s, total=0.00
+2025-10-24 12:47:33.235 Cache key: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:33.235 Memory cache MISS: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:33.235 Memory cache MISS: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:33.245 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.245 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.245 Memory cache MISS: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.245 Memory cache MISS: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.246 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.246 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.246 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.246 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.246 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.246 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.246 Memory cache MISS: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.246 Memory cache MISS: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.247 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.247 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.247 Memory cache MISS: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.247 Memory cache MISS: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.247 Cache key: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:33.247 Memory cache MISS: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:33.247 Memory cache MISS: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:33.256 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.256 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.256 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.256 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.257 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.257 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.257 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.257 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=0
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=7
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=7
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.002s
+2025-10-24 12:47:33.259 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.259 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.259 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.259 Memory cache MISS: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.259 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.259 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:33.259 Memory cache HIT: d38ebdd243b613efbfeef83c8c05b271
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.126s
+[PERF] apurar_base_regime_mes.TOTAL: 0.356s
+[PERF] apurar_compensacao_mes.TOTAL: 0.426s
+2025-10-24 12:47:33.683 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.683 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.683 Memory cache HIT: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:33.761 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.761 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:33.761 Memory cache HIT: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:33.762 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.762 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:33.762 Memory cache HIT: acd9b594e60af38ea3cf084bb1254cd5
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.078s, total=0.00
+2025-10-24 12:47:33.900 Cache key: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:33.901 Memory cache MISS: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:33.901 Memory cache MISS: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:33.910 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.910 Cache key: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.910 Memory cache MISS: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.910 Memory cache MISS: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.911 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.911 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.911 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.911 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.911 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.911 Cache key: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.911 Memory cache MISS: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.914 Memory cache MISS: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.915 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.915 Cache key: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.915 Memory cache MISS: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.915 Memory cache MISS: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:33.915 Cache key: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:33.915 Memory cache MISS: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:33.915 Memory cache MISS: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:33.924 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.924 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.924 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.924 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.925 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.925 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.925 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.925 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.000s, ops_vista=0
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.000s, ops_opcoes=5
+[PERF] carregar_operacoes_do_mes.df_build: 0.001s, total_ops=5
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.001s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.002s
+2025-10-24 12:47:33.927 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.927 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.927 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.927 Memory cache MISS: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.927 Not hashing _supabase because it starts with _
+2025-10-24 12:47:33.927 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:33.927 Memory cache HIT: a63d9f9a02b12efcfa602327b9e3d396
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.108s
+[PERF] apurar_base_regime_mes.TOTAL: 0.294s
+[PERF] apurar_compensacao_mes.TOTAL: 0.345s
+2025-10-24 12:47:34.271 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.271 Cache key: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:34.271 Memory cache HIT: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:34.326 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.326 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:34.326 Memory cache HIT: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:34.327 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.327 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:34.327 Memory cache HIT: d578d2fbde62b49c06a02d4a68ea0a57
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.055s, total=0.00
+2025-10-24 12:47:34.424 Cache key: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:34.424 Memory cache MISS: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:34.424 Memory cache MISS: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:34.434 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.434 Cache key: d9e1bc6a40ff139ac0b49f84869adaca
+2025-10-24 12:47:34.434 Memory cache HIT: d9e1bc6a40ff139ac0b49f84869adaca
+2025-10-24 12:47:34.434 Cache key: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:34.434 Memory cache MISS: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:34.434 Memory cache MISS: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:34.443 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.443 Cache key: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:34.443 Memory cache HIT: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:34.443 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.443 Cache key: d9e1bc6a40ff139ac0b49f84869adaca
+2025-10-24 12:47:34.443 Memory cache HIT: d9e1bc6a40ff139ac0b49f84869adaca
+[PERF] calcular_carry_ir_sub10[comum].iters=1 TOTAL: 0.105s, total=0.00
+2025-10-24 12:47:34.649 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:34.649 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:34.650 Cache key: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:34.650 Memory cache HIT: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:34.792 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:34.792 Memory cache HIT: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:34.792 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:34.792 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:34.792 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:34.792 Cache key: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:34.792 Memory cache MISS: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:34.792 Memory cache MISS: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:34.800 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.800 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:34.800 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:34.800 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.800 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:34.800 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:34.928 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:34.928 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:34.928 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:34.929 Cache key: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:34.929 Memory cache HIT: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:34.929 Cache key: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:34.929 Memory cache MISS: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:34.929 Memory cache MISS: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:34.939 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.939 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:34.939 Memory cache HIT: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:34.939 Not hashing _supabase because it starts with _
+2025-10-24 12:47:34.939 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:34.939 Memory cache HIT: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:35.071 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.071 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.071 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.071 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.071 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.071 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+[PERF] _get_rows_vista_ano: 0.053s para executar query Supabase
+[PERF] carregar_operacoes_do_mes.vista_loop: 0.053s, ops_vista=0
+[PERF] _get_rows_opcoes_operacoes_ano: 0.051s para executar query Supabase
+[PERF] carregar_operacoes_do_mes.opcoes_loop: 0.051s, ops_opcoes=4
+[PERF] carregar_operacoes_do_mes.df_build: 0.105s, total_ops=4
+[PERF] carregar_operacoes_do_mes.TOTAL: 0.105s
+[PERF] obter_resumo_categorias_mes.TOTAL: 0.106s
+2025-10-24 12:47:35.177 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.178 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.178 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.178 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.178 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.178 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.178 Memory cache HIT: c48dc6d59a4f32f27eb38a359478d6a1
+[PERF] apurar_isencao_20k_mes.TOTAL: 0.047s
+[PERF] apurar_base_regime_mes.TOTAL: 0.303s
+[PERF] apurar_compensacao_mes.TOTAL: 0.364s
+2025-10-24 12:47:35.435 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.435 Cache key: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.435 Memory cache MISS: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.435 Memory cache MISS: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.436 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.436 Cache key: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.436 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.436 Memory cache MISS: c48dc6d59a4f32f27eb38a359478d6a1
+2025-10-24 12:47:35.436 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.436 Cache key: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.436 Memory cache MISS: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.436 Memory cache MISS: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.437 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.437 Cache key: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.437 Memory cache MISS: fc4861b802b370c50dde8e31de528c7c
+2025-10-24 12:47:35.437 Memory cache MISS: fc4861b802b370c50dde8e31de528c7c
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.612s, total=0.00
+2025-10-24 12:47:35.606 Cache key: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:35.606 Memory cache HIT: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:35.606 Cache key: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:35.606 Memory cache MISS: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:35.606 Memory cache MISS: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:35.616 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.616 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:35.617 Memory cache HIT: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:35.617 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.617 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:35.617 Memory cache HIT: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:35.747 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.747 Cache key: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:35.747 Memory cache HIT: b00818fca2ff10c80533126edcefce8b
+2025-10-24 12:47:35.748 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.748 Cache key: 6450541f6872b85562e41e79c0d18706
+2025-10-24 12:47:35.748 Memory cache HIT: 6450541f6872b85562e41e79c0d18706
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.131s, total=0.00
+2025-10-24 12:47:35.811 Cache key: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:35.811 Memory cache HIT: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:35.811 Cache key: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:35.811 Memory cache MISS: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:35.811 Memory cache MISS: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:35.819 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.819 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:35.819 Memory cache HIT: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:35.819 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.819 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:35.819 Memory cache HIT: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:35.933 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.933 Cache key: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:35.933 Memory cache HIT: d83a45cbbd5d2d5828c5d8c9b5ad3c57
+2025-10-24 12:47:35.934 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.934 Cache key: cce9e2928370b8d76870e78d58eb2e1f
+2025-10-24 12:47:35.934 Memory cache HIT: cce9e2928370b8d76870e78d58eb2e1f
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.115s, total=0.00
+2025-10-24 12:47:35.986 Cache key: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:35.986 Memory cache HIT: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:35.986 Cache key: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:35.986 Memory cache MISS: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:35.986 Memory cache MISS: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:35.993 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.993 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:35.994 Memory cache HIT: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:35.994 Not hashing _supabase because it starts with _
+2025-10-24 12:47:35.994 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:35.994 Memory cache HIT: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:36.103 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.103 Cache key: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:36.103 Memory cache HIT: 76ce10c146d1adb6dba19597eb4abc4c
+2025-10-24 12:47:36.104 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.104 Cache key: c6da16b31261d96fea4224a36f22dd77
+2025-10-24 12:47:36.104 Memory cache HIT: c6da16b31261d96fea4224a36f22dd77
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.110s, total=0.00
+2025-10-24 12:47:36.149 Cache key: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:36.149 Memory cache HIT: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:36.149 Cache key: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:36.149 Memory cache MISS: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:36.149 Memory cache MISS: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:36.156 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.156 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:36.156 Memory cache HIT: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:36.156 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.156 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:36.156 Memory cache HIT: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:36.280 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.281 Cache key: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:36.281 Memory cache HIT: b38d6bd25cfc7f867a9518ca8c1a9cce
+2025-10-24 12:47:36.281 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.281 Cache key: c31841a2d546327acb5297b5fa421452
+2025-10-24 12:47:36.281 Memory cache HIT: c31841a2d546327acb5297b5fa421452
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.124s, total=0.00
+2025-10-24 12:47:36.343 Cache key: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:36.343 Memory cache HIT: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:36.344 Cache key: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:36.344 Memory cache MISS: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:36.344 Memory cache MISS: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:36.350 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.350 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:36.350 Memory cache HIT: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:36.350 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.350 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:36.350 Memory cache HIT: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:36.496 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.496 Cache key: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:36.496 Memory cache HIT: 2770d58f7d581dd1e80e578fc86c20a6
+2025-10-24 12:47:36.497 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.497 Cache key: acd9b594e60af38ea3cf084bb1254cd5
+2025-10-24 12:47:36.497 Memory cache HIT: acd9b594e60af38ea3cf084bb1254cd5
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.147s, total=0.00
+2025-10-24 12:47:36.571 Cache key: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:36.571 Memory cache HIT: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:36.571 Cache key: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:36.571 Memory cache MISS: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:36.571 Memory cache MISS: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:36.578 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.578 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:36.578 Memory cache HIT: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:36.578 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.578 Cache key: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:36.578 Memory cache HIT: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:36.685 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.685 Cache key: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:36.685 Memory cache HIT: d38ebdd243b613efbfeef83c8c05b271
+2025-10-24 12:47:36.685 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.685 Cache key: d578d2fbde62b49c06a02d4a68ea0a57
+2025-10-24 12:47:36.685 Memory cache HIT: d578d2fbde62b49c06a02d4a68ea0a57
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.107s, total=0.00
+2025-10-24 12:47:36.738 Cache key: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:36.738 Memory cache HIT: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:36.738 Cache key: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:36.738 Memory cache MISS: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:36.738 Memory cache MISS: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:36.746 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.746 Cache key: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:36.746 Memory cache HIT: b68002484d1fd6e62dc6277d72faa0f3
+2025-10-24 12:47:36.746 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.746 Cache key: d9e1bc6a40ff139ac0b49f84869adaca
+2025-10-24 12:47:36.746 Memory cache HIT: d9e1bc6a40ff139ac0b49f84869adaca
+2025-10-24 12:47:36.864 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.864 Cache key: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:36.864 Memory cache HIT: a63d9f9a02b12efcfa602327b9e3d396
+2025-10-24 12:47:36.864 Not hashing _supabase because it starts with _
+2025-10-24 12:47:36.865 Cache key: 2ddedc9ebe48db9c8653d8d26d8a6307
+2025-10-24 12:47:36.865 Memory cache HIT: 2ddedc9ebe48db9c8653d8d26d8a6307
+[PERF] calcular_carry_ir_sub10[daytrade].iters=1 TOTAL: 0.118s, total=0.00
+2025-10-24 12:47:36.917 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:36.918 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:36.918 Cache key: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:36.918 Memory cache HIT: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:37.030 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.031 Memory cache HIT: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.031 Cache key: aef9e00391fff0ed976f8a10b4fb7dae
+2025-10-24 12:47:37.031 Memory cache MISS: aef9e00391fff0ed976f8a10b4fb7dae
+2025-10-24 12:47:37.031 Memory cache MISS: aef9e00391fff0ed976f8a10b4fb7dae
+2025-10-24 12:47:37.031 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.031 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.031 Cache key: aef9e00391fff0ed976f8a10b4fb7dae
+2025-10-24 12:47:37.031 Memory cache MISS: aef9e00391fff0ed976f8a10b4fb7dae
+2025-10-24 12:47:37.031 Memory cache MISS: aef9e00391fff0ed976f8a10b4fb7dae
+2025-10-24 12:47:37.146 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.146 Memory cache HIT: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.147 Cache key: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:37.148 Memory cache HIT: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:37.148 Cache key: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:37.148 Memory cache HIT: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:37.148 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.148 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.148 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.148 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.148 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.148 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.148 Creating new DataCache (key=9f4704370f850c71c0d7f7d1021c8896, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:37.148 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.148 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.148 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.155 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.155 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.155 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.155 Creating new DataCache (key=59e83c2307dee6c4ee4a8363ab9c6293, persist=None, max_entries=None, ttl=30)
+2025-10-24 12:47:37.155 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.155 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.155 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.161 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.161 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.161 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.162 Cache key: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.162 Memory cache MISS: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.162 Memory cache MISS: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.162 Cache key: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.162 Memory cache HIT: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.162 Cache key: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:37.162 Memory cache HIT: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:37.162 Cache key: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.162 Memory cache HIT: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.162 Cache key: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:37.162 Memory cache HIT: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:37.162 Cache key: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.162 Memory cache HIT: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.162 Cache key: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:37.162 Memory cache HIT: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:37.162 Cache key: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.162 Memory cache HIT: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.163 Cache key: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:37.163 Memory cache HIT: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:37.163 Cache key: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.163 Memory cache HIT: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.163 Cache key: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:37.163 Memory cache HIT: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:37.163 Cache key: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.163 Memory cache HIT: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.163 Cache key: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:37.163 Memory cache HIT: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:37.163 Cache key: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.163 Memory cache HIT: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.163 Cache key: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:37.163 Memory cache HIT: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:37.163 Cache key: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.163 Memory cache HIT: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.164 Cache key: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:37.164 Memory cache HIT: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:37.164 Creating new DataCache (key=80214dcfa66a759306b7ceb062a03c6b, persist=None, max_entries=None, ttl=60)
+2025-10-24 12:47:37.164 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.164 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.167 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.167 Cache key: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.167 Memory cache HIT: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.167 Cache key: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:37.167 Memory cache HIT: f0edd12b1dd341e3a0c3c7b76fe1d64a
+2025-10-24 12:47:37.167 Cache key: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.167 Memory cache HIT: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.167 Cache key: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:37.167 Memory cache HIT: 7324df884eb0e73e9ccc87cadf745295
+2025-10-24 12:47:37.167 Cache key: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.168 Memory cache HIT: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.168 Cache key: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:37.168 Memory cache HIT: 065685ad72c77c085f6d3bf189599f48
+2025-10-24 12:47:37.168 Cache key: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.168 Memory cache HIT: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.168 Cache key: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:37.168 Memory cache HIT: a6d0f87bddbc63c13fd1a8bc8cd09fb4
+2025-10-24 12:47:37.168 Cache key: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.168 Memory cache HIT: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.168 Cache key: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:37.168 Memory cache HIT: a2f0e9ceac13d040918a74b9f3427a5f
+2025-10-24 12:47:37.169 Cache key: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.169 Memory cache HIT: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.169 Cache key: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:37.169 Memory cache HIT: 3831128f65466acc92029c826be799e0
+2025-10-24 12:47:37.169 Cache key: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.169 Memory cache HIT: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.169 Cache key: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:37.169 Memory cache HIT: 41f90e08e841e25d4ed32d9e8797351a
+2025-10-24 12:47:37.170 Cache key: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.170 Memory cache HIT: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.170 Cache key: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:37.170 Memory cache HIT: ce219a91b7088754dd74ee1746bc94e3
+2025-10-24 12:47:37.170 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.170 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.170 Cache key: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:37.170 Memory cache MISS: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:37.170 Memory cache MISS: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:37.171 Cache key: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.171 Memory cache HIT: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.171 Cache key: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:37.171 Memory cache HIT: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:37.171 Cache key: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.171 Memory cache HIT: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.171 Cache key: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:37.171 Memory cache HIT: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:37.172 Cache key: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.172 Memory cache HIT: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.172 Cache key: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:37.172 Memory cache HIT: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:37.172 Cache key: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.172 Memory cache HIT: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.172 Cache key: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:37.172 Memory cache HIT: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:37.173 Cache key: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.173 Memory cache HIT: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.173 Cache key: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:37.173 Memory cache HIT: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:37.173 Cache key: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.173 Memory cache HIT: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.173 Cache key: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:37.173 Memory cache HIT: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:37.174 Cache key: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.174 Memory cache HIT: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.174 Cache key: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:37.174 Memory cache HIT: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:37.174 Cache key: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.174 Memory cache HIT: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.174 Cache key: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:37.174 Memory cache HIT: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:37.174 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.174 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.174 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.174 Cache key: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.175 Memory cache HIT: 0f673eeec07e8ae6518e73d5cbb7b0f5
+2025-10-24 12:47:37.175 Cache key: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:37.175 Memory cache HIT: b7fc20972a04d552a9fcf7675382b3a1
+2025-10-24 12:47:37.175 Cache key: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.175 Memory cache HIT: b433deaa903352b2c9fb1341f9a207b7
+2025-10-24 12:47:37.175 Cache key: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:37.175 Memory cache HIT: 282d29c3ef517d6b3291f44b1f2e2ecd
+2025-10-24 12:47:37.175 Cache key: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.175 Memory cache HIT: 63fc57158dcabf4baf96689fb79a883a
+2025-10-24 12:47:37.175 Cache key: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:37.175 Memory cache HIT: 658c5494d61fe4b1a4c4af1ec0aa0bf9
+2025-10-24 12:47:37.175 Cache key: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.175 Memory cache HIT: 940e4ae47f458d1bdf6b3442fde7659a
+2025-10-24 12:47:37.175 Cache key: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:37.175 Memory cache HIT: efda5ec5d5f19eb99778e08f8d468924
+2025-10-24 12:47:37.175 Cache key: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.175 Memory cache HIT: a2e3b2c94444fced66dac843aaf6f466
+2025-10-24 12:47:37.176 Cache key: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:37.176 Memory cache HIT: e5f9e1d7bcdbdc815b79361b4ec4e77c
+2025-10-24 12:47:37.176 Cache key: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.176 Memory cache HIT: 24551d8de5e5284c8f662f30e07b8c76
+2025-10-24 12:47:37.176 Cache key: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:37.176 Memory cache HIT: dbe7fb150706b16f393a5da56808f4a7
+2025-10-24 12:47:37.176 Cache key: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.176 Memory cache HIT: 77b90ab794fceae27b6ab99e06fca1d0
+2025-10-24 12:47:37.176 Cache key: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:37.176 Memory cache HIT: f1e7ea40c3c7a104e6681f582e6001f3
+2025-10-24 12:47:37.176 Cache key: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.176 Memory cache HIT: 0a6c8dbd4357fb674b47a5b7c6e2ab04
+2025-10-24 12:47:37.176 Cache key: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:37.176 Memory cache HIT: d6bc06e628e0a1ea9f8f9d4769b4446e
+2025-10-24 12:47:37.176 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.177 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.234 Cache key: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:37.234 Memory cache HIT: 9222c870bf4d77ec5014e1e2551c2333
+2025-10-24 12:47:37.234 Cache key: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:37.235 Memory cache HIT: 6a2b620fdf072f2e0208e29683e2989d
+2025-10-24 12:47:37.235 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.235 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.235 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.235 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.601 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.601 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.601 Creating new DataCache (key=c0e2eef294928596f785c847c77d311b, persist=None, max_entries=None, ttl=60)
+2025-10-24 12:47:37.602 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.602 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.602 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.602 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.602 Memory cache HIT: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.602 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.602 Memory cache HIT: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.602 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.602 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.754 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.754 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:37.754 Creating new DataCache (key=2992aa0387455dc4c4effbe2f6095a61, persist=None, max_entries=None, ttl=60)
+2025-10-24 12:47:37.754 Cache key: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.754 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.754 Memory cache MISS: 6b1a5f0d5d64da5b76bf6f9126d71d34
+2025-10-24 12:47:37.754 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.754 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.755 Cache key: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.755 Memory cache HIT: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.755 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.755 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.755 Cache key: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:37.755 Memory cache HIT: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:37.755 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.755 Memory cache HIT: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.755 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.755 Memory cache HIT: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.756 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.756 Memory cache HIT: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.756 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.756 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.756 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.756 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.756 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.756 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.756 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:37.756 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:37.975 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.975 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.975 Creating new DataCache (key=7f025363fa476daab3c155872baac582, persist=None, max_entries=None, ttl=60)
+2025-10-24 12:47:37.976 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.976 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.976 Memory cache MISS: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.976 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.976 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.976 Cache key: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.976 Memory cache HIT: 8015006daadde3cd31f90c60aa5c32b7
+2025-10-24 12:47:37.976 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.976 Memory cache HIT: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.976 Cache key: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.976 Memory cache HIT: 279dde2f63e1129f6d33446dd409613c
+2025-10-24 12:47:37.979 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.980 Memory cache HIT: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:37.980 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.980 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:37.980 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.980 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.980 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:37.980 Not hashing _supabase because it starts with _
+2025-10-24 12:47:37.980 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:37.980 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:38.160 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:38.160 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:38.160 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.160 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.160 Memory cache MISS: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.160 Cache key: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:38.160 Memory cache HIT: 032b490cecbf2cf197e805b3c5df8f91
+2025-10-24 12:47:38.160 Cache key: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:38.160 Memory cache HIT: 299c1487c774f8af0ec53b00df120fe2
+2025-10-24 12:47:38.160 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.160 Memory cache HIT: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.161 Cache key: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.161 Memory cache HIT: 201d7ae138241eace61ce2b53abd6f70
+2025-10-24 12:47:38.163 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:38.163 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:38.163 Not hashing _supabase because it starts with _
+2025-10-24 12:47:38.163 Cache key: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:38.163 Memory cache HIT: d5216081c43055ddf83270c98bfc1d1f
+2025-10-24 12:47:38.163 Not hashing _supabase because it starts with _
+2025-10-24 12:47:38.163 Cache key: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:38.163 Memory cache HIT: a9e461e5f7386a7b02c90a2edb96ca7e
+2025-10-24 12:47:38.330 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:38.331 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:38.331 Cache key: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:38.331 Memory cache HIT: 7456e9bcb335fcc74a0384769d353fd7
+2025-10-24 12:47:38.548 Removing orphaned files...
+2025-10-24 12:47:38.686 Watcher created for /Users/viniciusdutra/Documents/webapp_economico/utils_ir.py

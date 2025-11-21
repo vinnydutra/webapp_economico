@@ -108,11 +108,275 @@ from utils_ir import (
     montar_auditoria_mes,
     invalidate_params_cache,
     get_param,
+    is_mes_sujo,
+    marcar_mes_calculado,
 )
+
+# --- [Pag8][PAY-EPOCH WRAPPERS] Atualiza epoch e memo após qualquer mudança em pagamentos ---
+# Reimporta originais com alias para não perdermos a referência
+from utils_ir import (
+    inserir_pagamento_darf as _ir__inserir_pagamento_darf_orig,
+    atualizar_pagamento_darf as _ir__atualizar_pagamento_darf_orig,
+    excluir_pagamento_darf as _ir__excluir_pagamento_darf_orig,
+)
+
+def _pag8__bump_after_payment(ano: int, mes: int):
+    """Incrementa o epoch específico de pagamentos e limpa o memo local
+    para forçar o refresh dos cards (inclui SITUAÇÃO) nesta página.
+    """
+    try:
+        import streamlit as _st
+        _st.session_state["pag8_pay_epoch"] = int(_st.session_state.get("pag8_pay_epoch", 0)) + 1
+        # Limpa memo local desta página para o (ano, mes) afetado
+        try:
+            _run = _st.session_state.get("_pag8_run", {})
+            if isinstance(_run, dict):
+                keys_to_drop = []
+                for k in list(_run.keys()):
+                    if not isinstance(k, tuple):
+                        continue
+                    # Chaves padrões usadas nesta página
+                    if (len(k) >= 3 and k[0] in ("diag_both", "snapshot", "listar_pag_both", "irrf") and k[1] == ano and k[2] == mes):
+                        keys_to_drop.append(k)
+                        continue
+                    if (len(k) >= 4 and k[0] in ("diag", "listar_pag", "previa_corrigida_regime") and k[1] == ano and k[2] == mes):
+                        keys_to_drop.append(k)
+                        continue
+                    # NEW: também invalida o cache do ledger do ano (impacta o card SITUAÇÃO)
+                    if (len(k) >= 2 and k[0] == "ledger" and k[1] == ano):
+                        keys_to_drop.append(k)
+                        continue
+                    # NEW: invalida prévia total corrigida, se existir chave local
+                    if (len(k) >= 4 and k[0] in ("previa_corrigida_total",) and k[1] == ano and k[2] == mes):
+                        keys_to_drop.append(k)
+                        continue
+                    # NEW: invalida prévia corrigida por regime (usada nos badges do card SITUAÇÃO e Resumo)
+                    if (len(k) >= 5 and k[0] == "previa_corrigida_regime" and k[1] == ano and k[2] == mes):
+                        keys_to_drop.append(k)
+                        continue
+                    # Fallback genérico: se o tuple contém ano e mês em qualquer posição
+                    if (ano in k) and (mes in k):
+                        keys_to_drop.append(k)
+                for k in keys_to_drop:
+                    _run.pop(k, None)
+                _st.session_state["_pag8_run"] = _run
+                # Além do memo leve, limpe caches @st.cache_data específicos de pagamentos
+                try:
+                    _cached_listar_pag.clear()
+                except Exception:
+                    pass
+                try:
+                    _cached_listar_pag_both.clear()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+# Wrappers com a MESMA assinatura usada na página (pass-through + bump de epoch)
+
+
+def inserir_pagamento_darf(*args, **kwargs):
+    """Wrapper local: chama o original e incrementa o epoch de pagamentos.
+    Espera assinatura (sb, uid, ano, mes, tipo, ...).
+    """
+    res = _ir__inserir_pagamento_darf_orig(*args, **kwargs)
+    try:
+        # tenta extrair ano/mes dos args posicionais
+        if len(args) >= 4:
+            _ano = int(args[2]); _mes = int(args[3])
+            _pag8__bump_after_payment(_ano, _mes)
+    except Exception:
+        pass
+    # Atualiza override local de pagamentos para refletir imediatamente na UI
+    try:
+        import streamlit as _st
+        # extrai regime a partir do 5º argumento posicional (tipo)
+        _reg = None
+        if len(args) >= 5:
+            _tipo_raw = str(args[4]).lower()
+            if _tipo_raw in ("comum", "normal", "avista", "swing"):
+                _reg = "comum"
+            elif _tipo_raw in ("daytrade", "dt", "day"):
+                _reg = "daytrade"
+            elif _tipo_raw == "fii":
+                _reg = "fii"
+            else:
+                # fallback: usa o valor bruto informado
+                _reg = _tipo_raw
+        if _reg and ("_ano" in locals()) and ("_mes" in locals()):
+            try:
+                from utils_ir import listar_pagamentos_darf as _ir__listar
+                _uid = None
+                if len(args) >= 2:
+                    _uid = args[1]
+                else:
+                    _uid = kwargs.get("uid") or kwargs.get("user_id")
+                _lst = _ir__listar(supabase_autenticado(), _uid, int(_ano), int(_mes), _reg) or []
+                _st.session_state[f"pag8_pay_override_{int(_ano)}_{int(_mes)}_{_reg}"] = _lst
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return res
+
+
+def atualizar_pagamento_darf(*args, **kwargs):
+    res = _ir__atualizar_pagamento_darf_orig(*args, **kwargs)
+    try:
+        if len(args) >= 4:
+            _ano = int(args[2]); _mes = int(args[3])
+            _pag8__bump_after_payment(_ano, _mes)
+    except Exception:
+        pass
+    # Atualiza override local de pagamentos para refletir imediatamente na UI
+    try:
+        import streamlit as _st
+        # extrai regime a partir do 5º argumento posicional (tipo)
+        _reg = None
+        if len(args) >= 5:
+            _tipo_raw = str(args[4]).lower()
+            if _tipo_raw in ("comum", "normal", "avista", "swing"):
+                _reg = "comum"
+            elif _tipo_raw in ("daytrade", "dt", "day"):
+                _reg = "daytrade"
+            elif _tipo_raw == "fii":
+                _reg = "fii"
+            else:
+                # fallback: usa o valor bruto informado
+                _reg = _tipo_raw
+        if _reg and ("_ano" in locals()) and ("_mes" in locals()):
+            try:
+                from utils_ir import listar_pagamentos_darf as _ir__listar
+                _uid = None
+                if len(args) >= 2:
+                    _uid = args[1]
+                else:
+                    _uid = kwargs.get("uid") or kwargs.get("user_id")
+                _lst = _ir__listar(supabase_autenticado(), _uid, int(_ano), int(_mes), _reg) or []
+                _st.session_state[f"pag8_pay_override_{int(_ano)}_{int(_mes)}_{_reg}"] = _lst
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return res
+
+
+def excluir_pagamento_darf(*args, **kwargs):
+    res = _ir__excluir_pagamento_darf_orig(*args, **kwargs)
+    try:
+        if len(args) >= 4:
+            _ano = int(args[2]); _mes = int(args[3])
+            _pag8__bump_after_payment(_ano, _mes)
+    except Exception:
+        pass
+    # Atualiza override local de pagamentos para refletir imediatamente na UI
+    try:
+        import streamlit as _st
+        # extrai regime a partir do 5º argumento posicional (tipo)
+        _reg = None
+        if len(args) >= 5:
+            _tipo_raw = str(args[4]).lower()
+            if _tipo_raw in ("comum", "normal", "avista", "swing"):
+                _reg = "comum"
+            elif _tipo_raw in ("daytrade", "dt", "day"):
+                _reg = "daytrade"
+            elif _tipo_raw == "fii":
+                _reg = "fii"
+            else:
+                # fallback: usa o valor bruto informado
+                _reg = _tipo_raw
+        if _reg and ("_ano" in locals()) and ("_mes" in locals()):
+            try:
+                from utils_ir import listar_pagamentos_darf as _ir__listar
+                _uid = None
+                if len(args) >= 2:
+                    _uid = args[1]
+                else:
+                    _uid = kwargs.get("uid") or kwargs.get("user_id")
+                _lst = _ir__listar(supabase_autenticado(), _uid, int(_ano), int(_mes), _reg) or []
+                _st.session_state[f"pag8_pay_override_{int(_ano)}_{int(_mes)}_{_reg}"] = _lst
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return res
+
+
+
+# --- [Pag8] Garantir que chamadas qualificadas usem os wrappers desta página ---
+
+try:
+    import utils_ir as _utils_ir_mod
+    _utils_ir_mod.inserir_pagamento_darf = inserir_pagamento_darf
+    _utils_ir_mod.atualizar_pagamento_darf = atualizar_pagamento_darf
+    _utils_ir_mod.excluir_pagamento_darf = excluir_pagamento_darf
+except Exception:
+    pass
+
+# Invalida flags e memo leve após consolidar um mês, para forçar recálculo ao voltar para o mês consolidado
+def _pag8__invalidate_after_consolidation(ano: int, mes: int):
+    """
+    Limpa flags e o memo leve desta página para (ano, mes) após consolidar.
+    Garante que, ao voltar para o mês consolidado, a UI mostre 'Calcular este mês'
+    e que nenhum valor stale de _pag8_run seja reutilizado.
+    """
+    try:
+        import streamlit as _st
+        # 1) força que o mês recém-consolidado precise de recálculo manual na UI
+        try:
+            _st.session_state[f"pag8_calc_{ano}_{mes}"] = False
+        except Exception:
+            pass
+
+        # 2) limpa o memo leve desta página (_pag8_run) para chaves relacionadas
+        try:
+            _run = _st.session_state.get("_pag8_run", {})
+            if isinstance(_run, dict):
+                keys_to_drop = []
+                for k in list(_run.keys()):
+                    if not isinstance(k, tuple):
+                        continue
+                    # ledger por ano (com ou sem epoch na chave)
+                    if len(k) >= 2 and k[0] == "ledger" and k[1] == ano:
+                        keys_to_drop.append(k)
+                        continue
+                    # snapshot / diag / listar_pag / irrf / diag_both / listar_pag_both para (ano, mes)
+                    if (len(k) >= 3 and k[1] == ano and k[2] == mes and k[0] in ("snapshot","irrf","diag_both","listar_pag_both")):
+                        keys_to_drop.append(k)
+                        continue
+                    if (len(k) >= 4 and k[1] == ano and k[2] == mes and k[0] in ("diag","listar_pag","previa_corrigida_total")):
+                        keys_to_drop.append(k)
+                        continue
+                    if (len(k) >= 5 and k[0] == "previa_corrigida_regime" and k[1] == ano and k[2] == mes):
+                        keys_to_drop.append(k)
+                        continue
+                    # fallback: qualquer tupla contendo ano e mês
+                    if (ano in k) and (mes in k):
+                        keys_to_drop.append(k)
+                for k in keys_to_drop:
+                    _run.pop(k, None)
+                _st.session_state["_pag8_run"] = _run
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 # Epoch para invalidar cache local desta página
 if "pag8_cache_epoch" not in st.session_state:
     st.session_state["pag8_cache_epoch"] = 0
+
+# Epoch adicional acionado por mudanças em pagamentos (força refresh do SITUAÇÃO/prévias)
+if "pag8_pay_epoch" not in st.session_state:
+    st.session_state["pag8_pay_epoch"] = 0
+
+def _epoch():
+    # usa cache_epoch + pay_epoch
+    try:
+        return int(st.session_state.get("pag8_cache_epoch", 0)) + int(st.session_state.get("pag8_pay_epoch", 0))
+    except Exception:
+        return int(st.session_state.get("pag8_cache_epoch", 0))
 
 # CSS para aumentar fonte dos rótulos de abas
 st.markdown("""
@@ -140,46 +404,20 @@ div[data-testid="stTabs"] button[role="tab"] p {
 </style>
 """, unsafe_allow_html=True)
 
-# Compacta as abas de MESES e melhora o scroll
-st.markdown("""
-<style>
-/* ——— Compacta as abas de MESES ——— */
-div[data-testid="stTabs"] [role="tablist"] {
-  gap: .25rem !important;            /* reduz o “respiro” entre as abas */
-  scroll-snap-type: x proximity;     /* rolagem mais suave */
-}
-div[data-testid="stTabs"] button[role="tab"] {
-  padding: 6px 10px !important;      /* menos “almofada” */
-  margin: 0 !important;              /* remove espaçamentos extras */
-  min-width: auto !important;        /* libera largura mínima */
-  font-size: .95rem;
-}
-div[data-testid="stTabs"] button[role="tab"] p {
-  margin: 0;
-}
-/* Barra de tabs fixa no topo da área do mês (melhor UX em telas pequenas) */
-div[data-testid="stTabs"] { 
-  position: sticky; 
-  top: 0; 
-  z-index: 2;
-  background: var(--background-color);
-}
-/* barra de rolagem mais visível e fina */
-div[data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar { height: 8px; }
-div[data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,.25);
-  border-radius: 999px;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # Sessão alinhada ao padrão do app (vide 7_Opções.py)
 if "uid" not in st.session_state:
     st.warning("Usuário não autenticado. Faça login para ver as operações.")
     st.stop()
 
+# --- Memoização local para chamadas pesadas (por sessão) ---
 supabase = supabase_autenticado()
 user_id = st.session_state["uid"]
+_run = st.session_state.setdefault("_pag8_run", {})
+def run_memo(key, fn):
+    if key not in _run:
+        _run[key] = fn()
+    return _run[key]
 # [IR-P2] Mensagem pós-ação (mostra no novo ciclo após st.rerun)
 _last_action_msg = st.session_state.pop("_last_action", None)
 if _last_action_msg:
@@ -193,7 +431,7 @@ if _last_action_msg:
 # Chamada com retry automático em caso de JWT expirado
 #
 # [IR-LEDGER-P1] Ledger único cacheado
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False, persist=True)
 def _cached_ledger(uid: str, ano_ini: int, ano_fim: int, epoch: int):
     from utils_ir import carregar_ledger_mensal
     return carregar_ledger_mensal(supabase_autenticado(), uid, ano_ini, ano_fim, epoch)
@@ -207,15 +445,15 @@ def _retry_jwt(fn):
             return fn(supabase_autenticado())
         raise
 # -------- Cached helpers (reduzem recomputo pesado) --------
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_apurar_base(uid: str, ano: int, mes: int, epoch: int):
     return _retry_jwt(lambda sb: apurar_base_regime_mes(sb, uid, ano, mes))
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_apurar_comp(uid: str, ano: int, mes: int, epoch: int):
     return _retry_jwt(lambda sb: apurar_compensacao_mes(sb, uid, ano, mes))
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_carregar_ops(uid: str, ano: int, mes: int, epoch: int):
     import pandas as _pd
     df = _retry_jwt(lambda sb: carregar_operacoes_do_mes(sb, uid, ano, mes))
@@ -225,7 +463,7 @@ def _cached_carregar_ops(uid: str, ano: int, mes: int, epoch: int):
 def _cached_diag(uid: str, ano: int, mes: int, tipo: str, epoch: int):
     return _retry_jwt(lambda sb: diagnostico_darf_mes(sb, uid, ano, mes, tipo))
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_snapshot(uid: str, ano: int, mes: int, epoch: int):
     return _retry_jwt(lambda sb: ler_snapshot_ativo_mes(sb, uid, ano, mes))
 
@@ -258,18 +496,341 @@ def _cached_listar_pag_both(uid: str, ano: int, mes: int, epoch: int):
     })
 
 # [IRRF-IR-02] Cached helper for IRRF aggregation
-@st.cache_data(ttl=30, show_spinner=False)
+
+@st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_irrf(uid: str, ano: int, mes: int, modo: str, epoch: int):
     return _retry_jwt(lambda sb: agregar_irrf_mes_por_regime(sb, uid, ano, mes, modo))
 
+
+# [IRRF-IR-ACUMULADO] Cached helper para saldo acumulado de IRRF e consumo do mês
+@st.cache_data(ttl=60, show_spinner=False, persist=True)
+def _irrf_acumulado_e_consumo(uid: str, ano: int, mes: int, reg: str, epoch: int):
+    """
+    Retorna (saldo_acumulado_apos, consumo_mes), onde:
+      - saldo_acumulado_apos: saldo de IRRF remanescente ao final do mês `mes`
+      - consumo_mes: quanto de IRRF foi consumido no mês `mes` (limitado ao IR devido do mês)
+    Agora o cálculo **carrega entre anos**, acumulando o saldo desde os anos anteriores
+    em ordem cronológica (FIFO) por mês.
+    """
+    try:
+        regime_key = "NORMAL" if reg == "comum" else ("DAYTRADE" if reg == "daytrade" else None)
+        if regime_key is None:
+            return (0.0, 0.0)
+
+        # 1) Determina os anos com operações para percorrer antes do ano corrente
+        saldo = 0.0
+        consumo_mes = 0.0
+        try:
+            ops = _cached_ops_count(uid, epoch) or {}
+            anos_disponiveis = sorted((ops.get("years", {}) or {}).keys())
+            anos_anteriores = [y for y in anos_disponiveis if isinstance(y, int) and y < int(ano) and (ops.get("years", {}).get(y, 0) or 0) > 0]
+        except Exception:
+            anos_anteriores = []
+
+        # 2) Processa todos os meses dos anos anteriores (carrega saldo entre anos)
+        for y in anos_anteriores:
+            for k in range(1, 13):
+                irrf_regs_k = _cached_irrf(uid, int(y), int(k), "abertura_total", epoch) or {}
+                irrf_k = float((irrf_regs_k.get(regime_key, 0.0) or 0.0))
+                diag_k = _cached_diag(uid, int(y), int(k), reg, epoch) or {}
+                ir_dev_k = float((diag_k.get("ir_devido_mes", 0.0) or 0.0))
+                consumo_k = min(ir_dev_k, saldo + irrf_k)
+                saldo = (saldo + irrf_k) - consumo_k
+
+        # 3) Processa meses do ano corrente até `mes`
+        for k in range(1, int(mes) + 1):
+            irrf_regs_k = _cached_irrf(uid, int(ano), int(k), "abertura_total", epoch) or {}
+            irrf_k = float((irrf_regs_k.get(regime_key, 0.0) or 0.0))
+            diag_k = _cached_diag(uid, int(ano), int(k), reg, epoch) or {}
+            ir_dev_k = float((diag_k.get("ir_devido_mes", 0.0) or 0.0))
+            consumo_k = min(ir_dev_k, saldo + irrf_k)
+            if k == int(mes):
+                consumo_mes = consumo_k
+            saldo = (saldo + irrf_k) - consumo_k
+
+        return (saldo, consumo_mes)
+    except Exception:
+        return (0.0, 0.0)
+
+# [IRRF-BREAKDOWN] Helper: month-by-month breakdown for IRRF disponível (for tooltip)
+
+@st.cache_data(ttl=60, show_spinner=False, persist=True)
+def _irrf_breakdown_disponivel(uid: str, ano: int, mes: int, reg: str, epoch: int):
+    """Retorna um dict {mes:int -> valor:float} dos meses que compõem o IRRF disponível exibido:
+    saldo remanescente após consumos até (mes-1) + IRRF do mês `mes`.
+    Agora considera **anos anteriores** também (FIFO entre anos). OBS: meses com o mesmo número
+    de diferentes anos são agregados sob a mesma chave (Jan, Fev, ...).
+    """
+    try:
+        regime_key = "NORMAL" if reg == "comum" else ("DAYTRADE" if reg == "daytrade" else None)
+        if regime_key is None:
+            return {}
+
+        # Fila FIFO de (mes, valor) acumulada entre anos e meses
+        fila = []
+
+        # 1) Anos anteriores: adiciona IRRF e consome contra IR devido mês a mês
+        try:
+            ops = _cached_ops_count(uid, epoch) or {}
+            anos_disponiveis = sorted((ops.get("years", {}) or {}).keys())
+            anos_anteriores = [y for y in anos_disponiveis if isinstance(y, int) and y < int(ano) and (ops.get("years", {}).get(y, 0) or 0) > 0]
+        except Exception:
+            anos_anteriores = []
+
+        for y in anos_anteriores:
+            for k in range(1, 13):
+                irrf_regs_k = _cached_irrf(uid, int(y), int(k), "abertura_total", epoch) or {}
+                irrf_k = float((irrf_regs_k.get(regime_key, 0.0) or 0.0))
+                if irrf_k > 0:
+                    fila.append([int(k), irrf_k])
+                diag_k = _cached_diag(uid, int(y), int(k), reg, epoch) or {}
+                ir_dev_k = float((diag_k.get("ir_devido_mes", 0.0) or 0.0))
+                consumir = ir_dev_k
+                i = 0
+                while consumir > 1e-9 and i < len(fila):
+                    disp = fila[i][1]
+                    take = min(disp, consumir)
+                    fila[i][1] = disp - take
+                    consumir -= take
+                    if fila[i][1] <= 1e-9:
+                        fila.pop(i)
+                    else:
+                        i += 1
+
+        # 2) Ano corrente até (mes-1)
+        for k in range(1, max(int(mes) - 1, 0) + 1):
+            irrf_regs_k = _cached_irrf(uid, int(ano), int(k), "abertura_total", epoch) or {}
+            irrf_k = float((irrf_regs_k.get(regime_key, 0.0) or 0.0))
+            if irrf_k > 0:
+                fila.append([int(k), irrf_k])
+            diag_k = _cached_diag(uid, int(ano), int(k), reg, epoch) or {}
+            ir_dev_k = float((diag_k.get("ir_devido_mes", 0.0) or 0.0))
+            consumir = ir_dev_k
+            i = 0
+            while consumir > 1e-9 and i < len(fila):
+                disp = fila[i][1]
+                take = min(disp, consumir)
+                fila[i][1] = disp - take
+                consumir -= take
+                if fila[i][1] <= 1e-9:
+                    fila.pop(i)
+                else:
+                    i += 1
+
+        # 3) Breakdown agregado por número do mês (nota: anos diferentes somam na mesma chave)
+        breakdown = {}
+        for k, val in fila:
+            if val > 1e-9:
+                breakdown[int(k)] = breakdown.get(int(k), 0.0) + float(val)
+
+        # 4) Soma o IRRF do mês atual integralmente
+        irrf_regs_m = _cached_irrf(uid, int(ano), int(mes), "abertura_total", epoch) or {}
+        irrf_m = float((irrf_regs_m.get(regime_key, 0.0) or 0.0))
+        if irrf_m > 1e-9:
+            breakdown[int(mes)] = breakdown.get(int(mes), 0.0) + irrf_m
+        return breakdown
+    except Exception:
+        return {}
+
+
+# [IRRF-DARF-HTML] Helper para exibir IRRF disponível (saldo anterior + mês) com tooltip (HTML pronto)
+@st.cache_data(ttl=60, show_spinner=False, persist=True)
+def _irrf_disp_fmt_html(uid: str, ano: int, mes: int, reg: str, epoch: int) -> str:
+    try:
+        if reg not in ("comum", "daytrade"):
+            return ''
+        regime_key = "NORMAL" if reg == "comum" else "DAYTRADE"
+        regs = _cached_irrf(uid, int(ano), int(mes), "abertura_total", epoch) or {}
+        irrf_mes_val = float((regs.get(regime_key, 0.0) or 0.0))
+        saldo_prev = 0.0
+        if int(mes) > 1:
+            saldo_prev, _ = _irrf_acumulado_e_consumo(uid, int(ano), int(mes) - 1, reg, epoch) or (0.0, 0.0)
+        val = max((saldo_prev or 0.0) + (irrf_mes_val or 0.0), 0.0)
+        out = _fmt_brl(val)
+        # Tooltip de composição (apenas se houver >1 mês compondo)
+        bd = _irrf_breakdown_disponivel(uid, int(ano), int(mes), reg, epoch) or {}
+        _mes_abrev = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
+        itens = [(k, v) for k, v in sorted(bd.items()) if v > 1e-9]
+        if len(itens) > 1:
+            tip = " | ".join([f"{_mes_abrev.get(int(k), k)}: {_fmt_brl(float(v))}" for k, v in itens])
+            out = f'<span title="{tip}">{out}</span>'
+        return out
+    except Exception:
+        return _fmt_brl(0.0)
+
+# [IRRF-TOTAL-HTML] Helper para exibir IRRF disponível TOTAL (Comum + Day Trade) com tooltip (HTML pronto)
+@st.cache_data(ttl=60, show_spinner=False, persist=True)
+def _irrf_disp_fmt_total_html(uid: str, ano: int, mes: int, epoch: int) -> str:
+    try:
+        # Valor disponível por regime: saldo_prev(m-1) + irrf_mes(m), limitado a ≥0
+        def _disp_reg(reg: str) -> float:
+            regime_key = "NORMAL" if reg == "comum" else "DAYTRADE"
+            regs = _cached_irrf(uid, int(ano), int(mes), "abertura_total", epoch) or {}
+            irrf_m = float((regs.get(regime_key, 0.0) or 0.0))
+            saldo_prev = 0.0
+            if int(mes) > 1:
+                saldo_prev, _ = _irrf_acumulado_e_consumo(uid, int(ano), int(mes) - 1, reg, epoch) or (0.0, 0.0)
+            return max((saldo_prev or 0.0) + (irrf_m or 0.0), 0.0)
+
+        val_c  = _disp_reg("comum")
+        val_dt = _disp_reg("daytrade")
+        total  = float(val_c) + float(val_dt)
+        out = _fmt_brl(total)
+
+        # Tooltip único: soma por mês dos breakdowns de ambos os regimes
+        bd_c  = _irrf_breakdown_disponivel(uid, int(ano), int(mes), "comum", epoch) or {}
+        bd_dt = _irrf_breakdown_disponivel(uid, int(ano), int(mes), "daytrade", epoch) or {}
+        bd_tot = {}
+        for k, v in (bd_c.items() if isinstance(bd_c, dict) else []):
+            try:
+                bd_tot[int(k)] = bd_tot.get(int(k), 0.0) + float(v or 0.0)
+            except Exception:
+                pass
+        for k, v in (bd_dt.items() if isinstance(bd_dt, dict) else []):
+            try:
+                bd_tot[int(k)] = bd_tot.get(int(k), 0.0) + float(v or 0.0)
+            except Exception:
+                pass
+        _mes_abrev = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
+        itens = [(k, v) for k, v in sorted(bd_tot.items()) if v > 1e-9]
+        if len(itens) > 1:
+            tip = " | ".join([f"{_mes_abrev.get(int(k), k)}: {_fmt_brl(float(v))}" for k, v in itens])
+            out = f'<span title="{tip}">{out}</span>'
+        return out
+    except Exception:
+        return _fmt_brl(0.0)
+
+
+# [IRRF-IR-PRÉVIA-CORRIGIDA] Helper: cálculo da prévia corrigida pelo ledger do IRRF para um regime
+@st.cache_data(ttl=60, show_spinner=False)
+def _previa_corrigida_regime(uid: str, ano: int, mes: int, reg: str, epoch: int):
+    """Retorna um dicionário com a prévia corrigida por regime usando o ledger do IRRF.
+    Campos:
+      - ir_mes: IR devido bruto do mês (antes de IRRF)
+      - consumo_irrf_mes: quanto de IRRF é consumido no mês (inclui o do mês)
+      - base_pos_irrf: max(ir_mes - consumo, 0)
+      - carry_sub10: carry acumulado (<10) do diagnóstico
+      - total_cons_corr: base_pos_irrf com regra do mínimo (>=10) + carry_sub10
+      - pagos_mes: soma de pagamentos de DARF do mês para o regime (com fallbacks)
+      - sugerido_agora: max(total_cons_corr - pagos_mes, 0)
+    """
+    try:
+        # Diagnóstico do mês para o regime
+        diag = _cached_diag(uid, int(ano), int(mes), reg, epoch) or {}
+        ir_mes = float((diag.get("ir_devido_mes", 0.0) or 0.0))
+        carry_sub10 = float((diag.get("carry_sub10", 0.0) or 0.0))
+        # Consumo IRRF acumulado (inclui o do mês)
+        _, consumo_irrf_mes = _irrf_acumulado_e_consumo(uid, int(ano), int(mes), reg, epoch)
+        base_pos_irrf = max(ir_mes - consumo_irrf_mes, 0.0)
+        # Regra do mínimo: somente partes >= 10 entram como devido; o restante vira carry_sub10 (já fornecido pelo diag)
+        parte_minima = base_pos_irrf if base_pos_irrf >= 10.0 else 0.0
+        total_cons_corr = parte_minima + carry_sub10
+        # Pagamentos do mês – mesma ordem de fontes usada no restante do app
+        pagos_val = 0.0
+        try:
+            pagos_val = float(sum_pagamentos_darf(supabase_autenticado(), uid, int(ano), int(mes), reg) or 0.0)
+        except Exception:
+            pagos_val = 0.0
+        if pagos_val <= 0.0:
+            try:
+                pagos_val = float((diag.get("pagos_mes", 0.0) or 0.0))
+            except Exception:
+                pass
+        if pagos_val <= 0.0:
+            try:
+                # Reaproveita listagem leve (cacheada) de pagamentos
+                _both = _cached_listar_pag_both(uid, int(ano), int(mes), epoch) or {}
+                lst = (_both.get(reg, []) if isinstance(_both, dict) else []) or []
+                pagos_val = _sum_val(lst, key="valor_pago")
+            except Exception:
+                pass
+        sugerido_agora = max(total_cons_corr - (pagos_val or 0.0), 0.0)
+        return {
+            "ir_mes": ir_mes,
+            "consumo_irrf_mes": float(consumo_irrf_mes or 0.0),
+            "base_pos_irrf": base_pos_irrf,
+            "carry_sub10": carry_sub10,
+            "total_cons_corr": total_cons_corr,
+            "pagos_mes": float(pagos_val or 0.0),
+            "sugerido_agora": sugerido_agora,
+        }
+    except Exception:
+        return {
+            "ir_mes": 0.0,
+            "consumo_irrf_mes": 0.0,
+            "base_pos_irrf": 0.0,
+            "carry_sub10": 0.0,
+            "total_cons_corr": 0.0,
+            "pagos_mes": 0.0,
+            "sugerido_agora": 0.0,
+        }
+
+# [IRRF-IR-PRÉVIA-CORRIGIDA-TOTAL] Helper: calcula a PRÉVIA (Total) corrigida somando Comum, Day Trade e FII
+@st.cache_data(ttl=60, show_spinner=False)
+def _previa_corrigida_total(uid: str, ano: int, mes: int, epoch: int):
+    """
+    Agrega a prévia corrigida por regime para compor o card PRÉVIA DE IR (Total).
+    Para FII, mantém a lógica atual (sem IRRF).
+    Campos retornados:
+      - ir_mes_total
+      - total_cons_corr_total
+      - pagos_total
+      - sugerido_total
+    """
+    try:
+        pc  = _previa_corrigida_regime(uid, int(ano), int(mes), "comum",    epoch) or {}
+        pdt = _previa_corrigida_regime(uid, int(ano), int(mes), "daytrade", epoch) or {}
+        # FII: usa diagnóstico do mês (sem IRRF)
+        diag_fii = _cached_diag(uid, int(ano), int(mes), "fii", epoch) or {}
+        ir_fii   = float((diag_fii.get("ir_devido_mes", 0.0) or 0.0))
+        carry_f  = float((diag_fii.get("carry_sub10", 0.0) or 0.0))
+        # total_considerado FII já vem do diag (regra do mínimo aplicada no backend)
+        tot_fii  = float((diag_fii.get("total_considerado", 0.0) or 0.0))
+        # pagamentos FII
+        pagos_f  = 0.0
+        try:
+            pagos_f = float(sum_pagamentos_darf(supabase_autenticado(), uid, int(ano), int(mes), "fii") or 0.0)
+        except Exception:
+            pagos_f = 0.0
+        if pagos_f <= 0.0:
+            try:
+                pagos_f = float((diag_fii.get("pagos_mes", 0.0) or 0.0))
+            except Exception:
+                pass
+        if pagos_f <= 0.0:
+            try:
+                lst_f = _cached_listar_pag(uid, int(ano), int(mes), "fii", epoch) or []
+                pagos_f = _sum_val(lst_f, key="valor_pago")
+            except Exception:
+                pass
+
+        ir_mes_total          = float(pc.get("ir_mes", 0.0)) + float(pdt.get("ir_mes", 0.0)) + ir_fii
+        total_cons_corr_total = float(pc.get("total_cons_corr", 0.0)) + float(pdt.get("total_cons_corr", 0.0)) + tot_fii
+        pagos_total           = float(pc.get("pagos_mes", 0.0)) + float(pdt.get("pagos_mes", 0.0)) + pagos_f
+        sugerido_total        = max(total_cons_corr_total - pagos_total, 0.0)
+
+        return {
+            "ir_mes_total": ir_mes_total,
+            "total_cons_corr_total": total_cons_corr_total,
+            "pagos_total": pagos_total,
+            "sugerido_total": sugerido_total,
+        }
+    except Exception:
+        return {
+            "ir_mes_total": 0.0,
+            "total_cons_corr_total": 0.0,
+            "pagos_total": 0.0,
+            "sugerido_total": 0.0,
+        }
+
 # --- Caches leves para carga inicial da página (evitam custo repetido na abertura) ---
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False, persist=True)
 def _cached_ops_count(uid: str, epoch: int):
     # NÃO passe o client como argumento cacheado para evitar hashing do _supabase
     sb = supabase_autenticado()
     return contar_operacoes_por_ano_mes(sb, uid)
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False, persist=True)
 def _cached_compensacoes(uid: str, epoch: int):
     sb = supabase_autenticado()
     try:
@@ -279,13 +840,7 @@ def _cached_compensacoes(uid: str, epoch: int):
 
 import pandas as pd
 # --- Prefer real tab bar component if available ---
-import contextlib
-try:
-    import extra_streamlit_components as stx
-    _HAS_STX = True
-except Exception:
-    _HAS_STX = False
-_HAS_STX = False  # force native st.tabs (compact CSS works better; 1.50.0 supports default index)
+
 # Contagem consolidada (à vista + opções)
 ops_count = _cached_ops_count(user_id, st.session_state["pag8_cache_epoch"])
 
@@ -300,6 +855,11 @@ try:
     ano_padrao, mes_padrao = proxima_competencia_nao_consolidada_com_ops(df_compensacoes, ops_count)
 except Exception:
     ano_padrao, mes_padrao = proxima_competencia_nao_consolidada(df_compensacoes)
+
+# Warm-up dos principais caches para o mês/ano padrão
+_ = run_memo(("diag_both", ano_padrao, mes_padrao, _epoch()), lambda: _cached_diag_both(user_id, ano_padrao, mes_padrao, _epoch()))
+_ = run_memo(("irrf", ano_padrao, mes_padrao, _epoch()),     lambda: _cached_irrf(user_id, ano_padrao, mes_padrao, "abertura_total", _epoch()))
+_ = run_memo(("ledger", ano_padrao, _epoch()),     lambda: _cached_ledger(user_id, ano_padrao, ano_padrao, _epoch()))
 
 # Abas de ano (ordem crescente)
 anos_ops = sorted(ops_count["years"].keys(), reverse=False)
@@ -327,23 +887,27 @@ tabs_anos = st.tabs(ano_labels, default=_default_year_label)
 MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho",
          "Agosto","Setembro","Outubro","Novembro","Dezembro"]
 
+# Helper para exibir competência em formato amigável ("Março 2022")
+def _fmt_competencia_humana(ano: int, mes: int) -> str:
+    try:
+        return f"{MESES[int(mes)-1]} {int(ano)}"
+    except Exception:
+        # Fallback seguro
+        try:
+            return f"{int(ano)}-{int(mes):02d}"
+        except Exception:
+            return str(ano)
+
 _today_perf = _dt_perf.date.today()
 _curr_year_perf, _curr_month_perf = _today_perf.year, _today_perf.month
 
 for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
     with tab:
         mesi = ops_count["months"].get(ano, {})  # dict {1:n, 2:n, ...}
-        __epoch_tabs = st.session_state.get("pag8_cache_epoch", 0) + 1
-
-        # Cálculo de divergência global removido da largada para evitar custo alto.
-        # Sinalização por mês será feita sob demanda quando o mês for calculado.
-        __meses_divergentes = set()
-
-        # Abas de meses com marca sutil (⚠️) quando há divergência — sem reordenar os meses
+        # Mantém ordem natural dos meses (1..12); seleção inicial é feita via `default` do st.tabs
         ordem_meses = list(range(1, 13))
 
-        mes_labels = [f"{MESES[mm-1]} {'⚠️' if (mm in __meses_divergentes) else ''}".strip() for mm in ordem_meses]
-        # Abas de MESES (ordem natural) com seleção padrão usando Streamlit 1.50+
+        mes_labels = [f"{MESES[mm-1]}".strip() for mm in ordem_meses]
         default_month_label = (
             mes_labels[mes_padrao - 1]
             if (ano == ano_padrao and (mes_padrao in ordem_meses))
@@ -352,52 +916,86 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
         tabs_meses = st.tabs(mes_labels, default=default_month_label)
         _meses_iter = list(zip(tabs_meses, ordem_meses))
 
+        if ano == ano_padrao:
+            st.session_state.setdefault(f"pag8_calc_{ano}_{mes_padrao}", True)
 
-        # Itera respeitando a ordem planejada, mas preservando 'm' como o mês real de 1..12
         for idx_mes, (tmes, m) in enumerate(_meses_iter):
-            with (tmes if tmes is not None else contextlib.nullcontext()):
-                # Lazy-load: só calcula pesado para (ano_padrao, mes_padrao) ou quando usuário pedir
+            with tmes:
                 is_default_month = (ano == ano_padrao and m == mes_padrao)
                 compute_key = f"pag8_calc_{ano}_{m}"
                 compute_now = bool(st.session_state.get(compute_key, False))
-                if not (is_default_month or compute_now):
-                    st.caption("Carregamento sob demanda: esta aba ainda não foi calculada.")
-                    if st.button("Calcular este mês", key=f"btn_calc_{ano}_{m}"):
+                # Flag de "sujeira" (quando a base pode estar desatualizada e devemos forçar recálculo explícito)
+                sujo = False
+                try:
+                    sujo = bool(is_mes_sujo(ano, m))
+                except Exception:
+                    sujo = False
+
+                # Se não for o mês padrão E não tiver sido solicitado cálculo, ou se estiver "sujo", mostra o botão de calcular
+                should_calculate = is_default_month or compute_now
+                if not should_calculate:
+                    st.caption("Carregamento sob demanda: esta aba ainda não foi calculada." if not sujo else "Este mês mudou desde o último cálculo. Clique para recalcular.")
+                    btn_txt = "Calcular este mês" if not sujo else "Calcular Mês"
+                    if st.button(btn_txt, key=f"btn_calc_{ano}_{m}"):
                         st.session_state[compute_key] = True
                         st.rerun()
                     continue
-                # Carrega as operações do mês primeiro (fonte única de verdade para contagem)
                 import pandas as _pd
-
-                # 1) Tenta cache primeiro (rápido)
+                # Marca o mês como calculado nesta sessão (limpa a "sujeira" de UI)
+                try:
+                    marcar_mes_calculado(ano, m)
+                except Exception:
+                    pass
+                # [REFATORADO] Carrega operações do mês: sempre tenta nocache se cache vazio,
+                # e atualiza ops_count local se encontrar dados.
                 _df_label_dict = _cached_carregar_ops(user_id, ano, m, st.session_state["pag8_cache_epoch"]) or {}
                 df = _pd.DataFrame(_df_label_dict)
-
-                # 2) Checagem de sanidade: se o cache vier vazio mas o contador agregado indica operações,
-                #    faz uma carga *sem cache* para evitar falso negativo.
                 try:
                     n_ops_hint = int(((ops_count or {}).get("months", {}).get(ano, {}) or {}).get(m, 0) or 0)
                 except Exception:
                     n_ops_hint = 0
 
-                if (df.empty) and (n_ops_hint > 0):
-                    # Bypass de cache: consulta direta no backend
+                # Se o cache veio vazio, SEMPRE tenta um carregamento direto (sem cache),
+                # independente de n_ops_hint, para capturar operações recentes ou contagem desatualizada.
+                if df.empty:
                     try:
                         from utils_ir import carregar_operacoes_do_mes as _carregar_ops_nocache
                         _sb = supabase_autenticado()
                         df_nc = _carregar_ops_nocache(_sb, user_id, ano, m)
-                        # Converte para DataFrame padrão e segue fluxo normal
                         if df_nc is not None and hasattr(df_nc, "empty") and (not df_nc.empty):
                             df = df_nc.copy()
+                            # Atualiza o ops_count local para este mês/ano (evita rótulo "0" e skips indevidos)
+                            try:
+                                ops_count.setdefault("months", {}).setdefault(ano, {})[m] = int(df.shape[0])
+                                # Recalcula o total por ano exibido nas tabs (years[ano])
+                                _months_map = ops_count.get("months", {}).get(ano, {}) or {}
+                                ops_count.setdefault("years", {})[ano] = int(sum(int(v or 0) for v in _months_map.values()))
+                            except Exception:
+                                pass
                     except Exception:
-                        # Mantém df vazio se falhar; UI mostrará "Sem operações"
                         pass
 
-                n_ops_eff = 0 if df.empty else df.shape[0]
-
-                # Se o mês realmente não tem operações e não é o mês atual, renderiza leve e sai
+                n_ops_eff = 0 if df.empty else int(df.shape[0])
                 _is_current_month = (ano == _curr_year_perf and m == _curr_month_perf)
-                if n_ops_eff == 0 and not _is_current_month:
+
+                # NEW: prova de vida por resumo (captura operações à vista/BDR/FII quando o df de operações vier vazio)
+                _has_resumo_mov = False
+                try:
+                    _resumo_probe = obter_resumo_categorias_mes(supabase, user_id, ano, m) or {}
+                    def _sum_vals(d):
+                        try:
+                            return float(d.get("acoes", 0.0)) + float(d.get("bdrefffii", 0.0)) + float(d.get("opcoes", 0.0)) + float(d.get("fiis", 0.0))
+                        except Exception:
+                            try:
+                                return sum(float(v or 0.0) for v in (d or {}).values())
+                            except Exception:
+                                return 0.0
+                    _has_resumo_mov = (_sum_vals(_resumo_probe.get("comum", {})) + _sum_vals(_resumo_probe.get("dt", {}))) != 0.0
+                except Exception:
+                    _has_resumo_mov = False
+
+                # Só mostra "Sem operações" se não houver df nem movimento detectado pelo resumo
+                if (n_ops_eff == 0) and (not _has_resumo_mov) and (not _is_current_month):
                     st.caption("Sem operações neste mês.")
                     _sub_tabs_placeholder = st.tabs(["Resumo", f"Operações (0)", "DARF"])
                     with _sub_tabs_placeholder[0]:
@@ -407,23 +1005,11 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     with _sub_tabs_placeholder[2]:
                         st.empty()
                     continue
-
-                # [IR-LEDGER-P1] Pré-carrega ledger único do ano (evita 50+ chamadas)
-                ledger_cache = _cached_ledger(user_id, ano, ano, st.session_state["pag8_cache_epoch"]) or {}
-                # Sub-abas do mês: Resumo | Operações (N) | DARF
-                try:
-                    n_ops_eff = int(n_ops_eff)
-                    if n_ops_eff < 0:
-                        n_ops_eff = 0
-                except Exception:
-                    n_ops_eff = 0
-                # --- Consolidação da competência (fora das sub-abas) ---
-                # O snapshot é usado para decidir o rótulo do botão (Consolidar vs Recalcular)
-                snap = _cached_snapshot(user_id, ano, m, st.session_state["pag8_cache_epoch"])
-
-                # Pré-carrega diagnósticos e pagamentos (ambos os regimes) uma única vez
-                _diag_both = _cached_diag_both(user_id, ano, m, st.session_state["pag8_cache_epoch"]) or {}
-                _pags_both = _cached_listar_pag_both(user_id, ano, m, st.session_state["pag8_cache_epoch"]) or {}
+                # Memoize ledger, diag_both, pags_both, snapshot
+                ledger_cache = run_memo(("ledger", ano, _epoch()), lambda: _cached_ledger(user_id, ano, ano, _epoch())) or {}
+                snap = run_memo(("snapshot", ano, m, _epoch()), lambda: _cached_snapshot(user_id, ano, m, _epoch()))
+                _diag_both = run_memo(("diag_both", ano, m, _epoch()), lambda: _cached_diag_both(user_id, ano, m, _epoch())) or {}
+                _pags_both = run_memo(("listar_pag_both", ano, m, _epoch()), lambda: _cached_listar_pag_both(user_id, ano, m, _epoch())) or {}
 
                 lcol, rcol = st.columns([1.6, 1])
 
@@ -443,7 +1029,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     try:
                         diag_c = (_diag_both.get("comum") if isinstance(_diag_both, dict) else {}) or {}
                         diag_dt = (_diag_both.get("daytrade") if isinstance(_diag_both, dict) else {}) or {}
-                        diag_fii = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+                        diag_fii = run_memo(("diag", ano, m, "fii"), lambda: _cached_diag(user_id, ano, m, "fii", _epoch())) or {}
 
                         def _diverge_reg(d, reg: str):
                             try:
@@ -480,16 +1066,47 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     # Coleta diagnósticos e pagamentos por regime
                     diag_c  = (_diag_both.get("comum") if isinstance(_diag_both, dict) else {}) or {}
                     diag_dt = (_diag_both.get("daytrade") if isinstance(_diag_both, dict) else {}) or {}
-                    diag_fii = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+                    diag_fii = run_memo(("diag", ano, m, "fii"), lambda: _cached_diag(user_id, ano, m, "fii", _epoch())) or {}
 
-                    pags_c  = (_pags_both.get("comum") if isinstance(_pags_both, dict) else []) or []
-                    pags_dt = (_pags_both.get("daytrade") if isinstance(_pags_both, dict) else []) or []
-                    pags_f  = _cached_listar_pag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or []
+                    # Preferência: override local (pós-ação) -> cache both -> cache unitário
+                    _ovr_key_c  = f"pag8_pay_override_{ano}_{m}_comum"
+                    _ovr_key_dt = f"pag8_pay_override_{ano}_{m}_daytrade"
+                    _ovr_key_f  = f"pag8_pay_override_{ano}_{m}_fii"
+
+                    pags_c = []
+                    if _ovr_key_c in st.session_state:
+                        pags_c = st.session_state.get(_ovr_key_c) or []
+                    if not pags_c:
+                        pags_c = (_pags_both.get("comum") if isinstance(_pags_both, dict) else []) or []
+                    if not pags_c:
+                        pags_c = run_memo(("listar_pag", ano, m, "comum"), lambda: _cached_listar_pag(user_id, ano, m, "comum", _epoch())) or []
+
+                    pags_dt = []
+                    if _ovr_key_dt in st.session_state:
+                        pags_dt = st.session_state.get(_ovr_key_dt) or []
+                    if not pags_dt:
+                        pags_dt = (_pags_both.get("daytrade") if isinstance(_pags_both, dict) else []) or []
+                    if not pags_dt:
+                        pags_dt = run_memo(("listar_pag", ano, m, "daytrade"), lambda: _cached_listar_pag(user_id, ano, m, "daytrade", _epoch())) or []
+
+                    pags_f = []
+                    if _ovr_key_f in st.session_state:
+                        pags_f = st.session_state.get(_ovr_key_f) or []
+                    if not pags_f:
+                        pags_f = run_memo(("listar_pag", ano, m, "fii"), lambda: _cached_listar_pag(user_id, ano, m, "fii", _epoch())) or []
 
                     def _badge_reg(diag: dict, pagamentos: list, regime: str):
-                        # Base oficial para a regra dos R$10: total_considerado (já líquido de IRRF e carry)
-                        total_cons = float(diag.get("total_considerado", 0.0) or 0.0)
-                        pagos  = _sum_pagos(pagamentos)
+                        """Gera o badge de situação usando a PRÉVIA CORRIGIDA pelo ledger de IRRF.
+                        Mantém a mesma semântica dos rótulos (Isento, Abaixo do mínimo, Devido, Pago –, Pago, Pago +).
+                        """
+                        # Fonte única: prévia corrigida por regime (já líquida de IRRF e com regra do mínimo)
+                        try:
+                            pc = run_memo(("previa_corrigida_regime", ano, m, regime, _epoch()), lambda: _previa_corrigida_regime(user_id, ano, m, regime, _epoch())) or {}
+                        except Exception:
+                            pc = {}
+
+                        total_cons = float(pc.get("total_cons_corr", 0.0) or 0.0)
+                        pagos      = float(pc.get("pagos_mes", 0.0) or 0.0)
 
                         # 1) Isento: nenhum imposto devido (total_cons <= 0)
                         if total_cons <= 0.0:
@@ -500,7 +1117,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                             return ("Abaixo do mínimo", "#9e9e9e", "Transportado para o próximo mês")
 
                         # 3) total_cons ≥ 10: calcular saldo em aberto com base no que já foi pago
-                        devido_now = total_cons - pagos
+                        devido_now = max(total_cons - pagos, 0.0)
 
                         # 3.1) Nenhum pagamento e saldo ≥ 10 → Devido (vermelho)
                         if devido_now >= 10.0 and pagos <= 0.0:
@@ -555,7 +1172,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     # Usa os mesmos sinais já utilizados na aba DARF
                     diag_c = (_diag_both.get("comum") if isinstance(_diag_both, dict) else {}) or {}
                     diag_dt = (_diag_both.get("daytrade") if isinstance(_diag_both, dict) else {}) or {}
-                    diag_fii = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+                    diag_fii = run_memo(("diag", ano, m, "fii"), lambda: _cached_diag(user_id, ano, m, "fii", _epoch())) or {}
 
                     def _diverge(d, reg: str):
                         try:
@@ -584,12 +1201,15 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
 
                     confirm_key = f"confirm_consol_{ano}_{m}"
 
-                    if st.button(btn_label, key=f"consol_{ano}_{m}", width='stretch'):
+                    if st.button(btn_label, key=f"consol_{ano}_{m}"):
                         try:
-                            # Usa PRÉVIA oficial para confirmação
-                            diag_comum = _cached_diag(user_id, ano, m, "comum", st.session_state["pag8_cache_epoch"])
-                            diag_dt    = _cached_diag(user_id, ano, m, "daytrade", st.session_state["pag8_cache_epoch"])
-                            diag_fii   = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"])
+                            # Usa PRÉVIA oficial para confirmação (SEM cache: chamada direta ao backend)
+                            def _diag_nocache(_reg: str):
+                                return _retry_jwt(lambda sb: diagnostico_darf_mes(sb, user_id, ano, m, _reg)) or {}
+
+                            diag_comum = _diag_nocache("comum")
+                            diag_dt    = _diag_nocache("daytrade")
+                            diag_fii   = _diag_nocache("fii")
 
                             dados_comum = {
                                 "ir_devido_mes": float(diag_comum.get("ir_devido_mes", 0.0)),
@@ -629,8 +1249,9 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                 # Prossegue com a consolidação diretamente
                                 with st.spinner("Consolidando..."):
                                     consolidar_competencia_mes(supabase, user_id, ano, m)
-                                # [IR-P2] Evita re-render pesado duplo: agenda sucesso e rerun imediato
-                                st.session_state["_last_action"] = f"Competência consolidada com sucesso — {ano}-{m:02d}"
+                                # Invalida memo leve e força recálculo manual ao voltar para o mês
+                                _pag8__invalidate_after_consolidation(ano, m)
+                                st.session_state["_last_action"] = f"Competência consolidada com sucesso — {_fmt_competencia_humana(ano, m)}"
                                 st.session_state["pag8_cache_epoch"] += 1
                                 st.rerun()
                         except Exception as e:
@@ -650,24 +1271,61 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                         )
                         cbtn1, cbtn2, _ = st.columns([1, 1, 2])
                         with cbtn1:
-                            if st.button('✅ Consolidar agora', key=f'confirm_yes_{ano}_{m}', width='stretch'):
+                            if st.button('✅ Consolidar agora', key=f'confirm_yes_{ano}_{m}'):
                                 try:
                                     with st.spinner('Consolidando...'):
                                         consolidar_competencia_mes(supabase, user_id, ano, m)
-                                    # [IR-P2] Evita re-render pesado duplo
-                                    st.session_state['_last_action'] = f'Competência consolidada com sucesso — {ano}-{m:02d}'
+                                    # Invalida memo leve e força recálculo manual ao voltar para o mês
+                                    _pag8__invalidate_after_consolidation(ano, m)
+                                    # Evita re-render pesado duplo
+                                    st.session_state['_last_action'] = f"Competência consolidada com sucesso — {_fmt_competencia_humana(ano, m)}"
                                     st.session_state['pag8_cache_epoch'] += 1
                                     st.session_state.pop(confirm_key, None)
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f'Erro ao consolidar: {e}')
                         with cbtn2:
-                            if st.button('❌ Cancelar', key=f'confirm_no_{ano}_{m}', width='stretch'):
+                            if st.button('❌ Cancelar', key=f'confirm_no_{ano}_{m}'):
                                 st.session_state.pop(confirm_key, None)
                                 st.rerun()
 
                 # Usa o df já pré-carregado acima e sua contagem real
                 sub_tabs = st.tabs(["Resumo", f"Operações ({n_ops_eff})", "DARF"])
+
+                # [P2c] Fonte única para listagem de pagamentos (usa override → cache both → cache unitário)
+                def _pag8_pags_for(uid: str, ano: int, mes: int, reg: str, _pags_both_dict: dict):
+                    import streamlit as _st
+                    try:
+                        _ovr_key = f"pag8_pay_override_{int(ano)}_{int(mes)}_{reg}"
+                    except Exception:
+                        _ovr_key = f"pag8_pay_override_{ano}_{mes}_{reg}"
+                    # 1) Preferência: override local (pós-ação)
+                    if _ovr_key in _st.session_state:
+                        _lst = _st.session_state.get(_ovr_key) or []
+                        if isinstance(_lst, list) and _lst:
+                            return _lst
+                    # 2) Fallback: cache leve de ambos regimes
+                    try:
+                        _lst = (_pags_both_dict.get(reg) if isinstance(_pags_both_dict, dict) else []) or []
+                        if isinstance(_lst, list) and _lst:
+                            return _lst
+                    except Exception:
+                        pass
+                    # 3) Fallback final: cache unitário
+                    try:
+                        return _cached_listar_pag(uid, int(ano), int(mes), reg, _epoch()) or []
+                    except Exception:
+                        try:
+                            return _cached_listar_pag(uid, ano, mes, reg, _epoch()) or []
+                        except Exception:
+                            return []
+
+                # [PAY-LIST][SOURCE] Fonte única para listagem com override → cache both → cache unitário
+                # (inserido logo após sub_tabs para garantir padrão em todas as abas)
+                _pags_both = run_memo(("listar_pag_both", ano, m, _epoch()), lambda: _cached_listar_pag_both(user_id, ano, m, _epoch())) or {}
+                pags_c  = _pag8_pags_for(user_id, ano, m, "comum", _pags_both)
+                pags_dt = _pag8_pags_for(user_id, ano, m, "daytrade", _pags_both)
+                pags_f  = _pag8_pags_for(user_id, ano, m, "fii", _pags_both)
                 with sub_tabs[0]:
                     # ===== UI da aba Resumo (somente layout; sem cálculos) =====
                     # Carrega CSS apenas uma vez por sessão
@@ -709,9 +1367,9 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                             return False
 
                     # Diagnósticos locais para a aba Resumo
-                    diag_comum = _cached_diag(user_id, ano, m, "comum", st.session_state["pag8_cache_epoch"]) or {}
-                    diag_dt    = _cached_diag(user_id, ano, m, "daytrade", st.session_state["pag8_cache_epoch"]) or {}
-                    diag_fii   = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+                    diag_comum = run_memo(("diag", ano, m, "comum"), lambda: _cached_diag(user_id, ano, m, "comum", _epoch())) or {}
+                    diag_dt    = run_memo(("diag", ano, m, "daytrade"), lambda: _cached_diag(user_id, ano, m, "daytrade", _epoch())) or {}
+                    diag_fii   = run_memo(("diag", ano, m, "fii"), lambda: _cached_diag(user_id, ano, m, "fii", _epoch())) or {}
 
                     dvg_c   = _diverge_reg_local(diag_comum or {}, "comum")
                     dvg_dt  = _diverge_reg_local(diag_dt    or {}, "daytrade")
@@ -756,10 +1414,10 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     c_total = _fmt_brl(total_comum_val)
 
                     # === IR devido por regime (base bruta) + compensação (C1) ===
-                    bases = _m_ledger.get("bases") or _cached_apurar_base(user_id, ano, m, st.session_state["pag8_cache_epoch"])
+                    bases = _m_ledger.get("bases") or _cached_apurar_base(user_id, ano, m, _epoch())
 
                     # Compensação do mês por regime (usa carry-in de compensacoes_ir)
-                    comp = _m_ledger.get("comp") or _cached_apurar_comp(user_id, ano, m, st.session_state["pag8_cache_epoch"])
+                    comp = _m_ledger.get("comp") or _cached_apurar_comp(user_id, ano, m, _epoch())
 
 
                     # FORMATOS – COMUM
@@ -774,143 +1432,142 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     ir_dt_fmt = _fmt_brl((comp.get("DAYTRADE") or {}).get("ir_devido", 0.0))
                     prej_dt_fmt = _fmt_brl((comp.get("DAYTRADE") or {}).get("prejuizo_restante", 0.0))
 
-                    # [IRRF-IR-02] IRRF por regime (modo abertura_total)
-                    irrf_regs = (_m_ledger.get("irrf") or {}) or _cached_irrf(user_id, ano, m, "abertura_total", st.session_state["pag8_cache_epoch"]) or {}
-                    try:
-                        irrf_comum_fmt = _fmt_brl(irrf_regs.get("NORMAL", 0.0))
-                    except Exception:
-                        irrf_comum_fmt = _fmt_brl(0.0)
-                    try:
-                        irrf_dt_fmt = _fmt_brl(irrf_regs.get("DAYTRADE", 0.0))
-                    except Exception:
-                        irrf_dt_fmt = _fmt_brl(0.0)
+                    # [DARF-IRRF] Exibição do IRRF disponível (saldo anterior + mês) com tooltip (FIFO)
 
                     # === Snapshot consolidado (se existir) para IR a recolher e status ===
-                    snap = _cached_snapshot(user_id, ano, m, st.session_state["pag8_cache_epoch"])
+                    snap = run_memo(("snapshot", ano, m), lambda: _cached_snapshot(user_id, ano, m, st.session_state["pag8_cache_epoch"]))
 
                     def _ir_e_badge(reg):
-                        # Basear o valor na regra do mínimo (total_considerado) e abater pagamentos efetivos do banco.
-                        diag = (_diag_both.get(reg) if isinstance(_diag_both, dict) else None)
-                        if not diag:
-                            return ("Não devido", "Provisório")
+                        """
+                        Usa a PRÉVIA corrigida por regime (que já contempla IRRF acumulado + carry_sub10),
+                        e aplica a mesma semântica de badges utilizada no mini-card SITUAÇÃO.
+                        Retorna (valor_fmt, badge_txt).
+                        """
+                        try:
+                            pc = run_memo(("previa_corrigida_regime", ano, m, reg, _epoch()), lambda: _previa_corrigida_regime(user_id, ano, m, reg, _epoch())) or {}
+                        except Exception:
+                            pc = {}
 
-                        try:
-                            total_cons = float(diag.get("total_considerado", 0.0) or 0.0)
-                        except Exception:
-                            total_cons = 0.0
-                        try:
-                            _sug = diag.get("sugerido_pagar", None)
-                            sugerido = float(_sug) if (_sug is not None) else None
-                        except Exception:
-                            sugerido = None
-                        try:
-                            ir_mes = float(diag.get("ir_devido_mes", 0.0) or 0.0)
-                        except Exception:
-                            ir_mes = 0.0
+                        total_cons = float(pc.get("total_cons_corr", 0.0) or 0.0)   # já inclui carry_sub10
+                        pagos      = float(pc.get("pagos_mes", 0.0) or 0.0)
+                        devido_now = max(total_cons - pagos, 0.0)
 
-                        # Badge segue a regra do mínimo com base no TOTAL CONSIDERADO (antes de pagamentos)
-                        if total_cons <= 0:
-                            return ("Não devido", "Quitado/sem débito")
+                        # Semântica dos badges
+                        if total_cons <= 0.0:
+                            return ("Não devido", "Isento")
+
                         if 0.0 < total_cons < 10.0:
                             return ("Não devido", "Abaixo do mínimo")
 
-                        # total_cons >= 10: a base correta para o saldo é o TOTAL CONSIDERADO (antes de pagamentos)
-                        base_val = total_cons
+                        # total_cons >= 10.0
+                        if abs(devido_now) < 0.01:
+                            # quitado por DARF ou IRRF (prévia já desconta IRRF no total_cons)
+                            return (_fmt_brl(0.0), "Pago")
 
-                        # Ordem das fontes de pagamento: 1) agregado no banco 2) prévia (pagos_mes) 3) listas UI
-                        pagos_val = 0.0
-                        try:
-                            pagos_val = float(sum_pagamentos_darf(supabase_autenticado(), user_id, ano, m, reg) or 0.0)
-                        except Exception:
-                            pagos_val = 0.0
-                        if pagos_val <= 0.0:
-                            try:
-                                pagos_val = float((diag or {}).get("pagos_mes", 0.0) or 0.0)
-                            except Exception:
-                                pass
-                        if pagos_val <= 0.0:
-                            try:
-                                pagos_lst = (_pags_both.get(reg, []) if isinstance(_pags_both, dict) else []) or []
-                                pagos_val = _sum_val(pagos_lst, key="valor_pago")
-                            except Exception:
-                                pass
+                        if pagos <= 0.0:
+                            # há devido e nada pago no mês
+                            return (_fmt_brl(devido_now), "Devido")
 
-                        saldo = max((base_val or 0.0) - (pagos_val or 0.0), 0.0)
-                        badge_txt = "Provisório"
-                        if (total_cons >= 10.0) and (abs(saldo) < 0.01):
-                            badge_txt = "Quitado"
-
-                        return (_fmt_brl(saldo), badge_txt)
+                        # houve pagamento, mas ainda resta saldo
+                        return (_fmt_brl(devido_now), ("Pago –" if devido_now >= 10.0 else "Abaixo do mínimo"))
 
                     ir_a_rec_comum_fmt, badge_comum = _ir_e_badge("comum")
                     ir_a_rec_dt_fmt, badge_dt = _ir_e_badge("daytrade")
 
+                    # [IRRF-RESUMO] Fonte única para exibição do IRRF disponível (saldo anterior + mês) com tooltip
+                    try:
+                        # 1) Preferir o que já veio no ledger da página (quando disponível)
+                        _m_ledger_local = (ledger_cache.get((ano, m)) or {})
+                        _irrf_from_ledger = _m_ledger_local.get("irrf_regs")
+                        irrf_regs = _irrf_from_ledger if isinstance(_irrf_from_ledger, dict) else None
+
+                        # 2) Fallback para o agregado oficial cacheado da abertura (abertura_total)
+                        if not isinstance(irrf_regs, dict):
+                            irrf_regs = run_memo(
+                                ("irrf", ano, m, _epoch()),
+                                lambda: _cached_irrf(user_id, ano, m, "abertura_total", _epoch())
+                            ) or {}
+                    except Exception:
+                        irrf_regs = {}
+
+                    def _irrf_disp_fmt_resumo(_reg_alias: str, _reg_key: str) -> str:
+                        try:
+                            irrf_mes = float((irrf_regs.get(_reg_key, 0.0) or 0.0))
+                            saldo_prev = 0.0
+                            if m > 1:
+                                saldo_prev, _ = _irrf_acumulado_e_consumo(user_id, ano, m - 1, _reg_alias, _epoch()) or (0.0, 0.0)
+                            val = max((saldo_prev or 0.0) + (irrf_mes or 0.0), 0.0)
+                            out = _fmt_brl(val)
+                            # Tooltip com composição quando houver mais de um mês contribuindo
+                            bd = _irrf_breakdown_disponivel(user_id, ano, m, _reg_alias, _epoch()) or {}
+                            _mes_abrev = {1:"Jan",2:"Fev",3:"Mar",4:"Abr",5:"Mai",6:"Jun",7:"Jul",8:"Ago",9:"Set",10:"Out",11:"Nov",12:"Dez"}
+                            itens = [(k, v) for k, v in sorted(bd.items()) if v > 1e-9]
+                            if len(itens) > 1:
+                                tip = " | ".join([f"{_mes_abrev.get(int(k), k)}: {_fmt_brl(float(v))}" for k, v in itens])
+                                out = f'<span title="{tip}">{out}</span>'
+                            return out
+                        except Exception:
+                            return _fmt_brl(0.0)
+
+                    # Formatos usados nos cards do Resumo
+                    irrf_comum_fmt = _irrf_disp_fmt_resumo("comum", "NORMAL")
+                    irrf_dt_fmt    = _irrf_disp_fmt_resumo("daytrade", "DAYTRADE")
+
                     # [IR-P32] Override em caso de divergência: usar PRÉVIA líquida de IRRF
                     #          comparada ao snapshot **após** descontar pagamentos efetivos do mês.
-                    try:
-                        def __ir_prev_liq(d: dict, reg: str) -> float:
-                            ir_mes_val = float((d or {}).get("ir_devido_mes", 0.0) or 0.0)
-                            irrf_val = 0.0
-                            if reg in ("comum", "daytrade"):
+                    def __ir_prev_liq(d: dict, reg: str) -> float:
+                        ir_mes_val = float((d or {}).get("ir_devido_mes", 0.0) or 0.0)
+                        irrf_val = 0.0
+                        if reg in ("comum", "daytrade"):
+                            try:
+                                irrf_val = float((d or {}).get("irrf_retido", 0.0) or 0.0)
+                            except Exception:
+                                irrf_val = 0.0
+                            if irrf_val <= 0.0:
                                 try:
-                                    # Preferir IRRF da própria prévia; se vier vazio, cair no agregado oficial
-                                    irrf_val = float((d or {}).get("irrf_retido", 0.0) or 0.0)
+                                    regs = irrf_regs or {}
+                                    irrf_val = float((regs.get("NORMAL", 0.0) if reg == "comum" else regs.get("DAYTRADE", 0.0)) or 0.0)
                                 except Exception:
                                     irrf_val = 0.0
-                                if irrf_val <= 0.0:
-                                    try:
-                                        regs = irrf_regs or {}
-                                        irrf_val = float((regs.get("NORMAL", 0.0) if reg == "comum" else regs.get("DAYTRADE", 0.0)) or 0.0)
-                                    except Exception:
-                                        irrf_val = 0.0
-                            # FII não tem IRRF
-                            return max(ir_mes_val - irrf_val, 0.0)
-
-                        def __pagos_reg(d: dict, reg: str) -> float:
-                            # Ordem das fontes: 1) soma agregada no banco, 2) campo pagos_mes da prévia, 3) lista carregada na UI
+                        return max(ir_mes_val - irrf_val, 0.0)
+                    def __pagos_reg(d: dict, reg: str) -> float:
+                        val = 0.0
+                        try:
+                            val = float(sum_pagamentos_darf(supabase_autenticado(), user_id, ano, m, reg) or 0.0)
+                        except Exception:
                             val = 0.0
+                        if val <= 0.0:
                             try:
-                                val = float(sum_pagamentos_darf(supabase_autenticado(), user_id, ano, m, reg) or 0.0)
+                                val = float((d or {}).get("pagos_mes", 0.0) or 0.0)
                             except Exception:
-                                val = 0.0
-                            if val <= 0.0:
-                                try:
-                                    val = float((d or {}).get("pagos_mes", 0.0) or 0.0)
-                                except Exception:
-                                    pass
-                            if val <= 0.0:
-                                try:
-                                    lst = (_pags_both.get(reg, []) if isinstance(_pags_both, dict) else []) or []
-                                    val = _sum_val(lst, key="valor_pago")
-                                except Exception:
-                                    pass
-                            return max(val, 0.0)
-
-                        def __diverge_ir_a_recolher(d: dict, reg: str) -> bool:
-                            snap_reg = (snap.get(reg) if isinstance(snap, dict) else None)
-                            if not snap_reg:
-                                return False
+                                pass
+                        if val <= 0.0:
                             try:
-                                prev_liq = __ir_prev_liq(d or {}, reg)
-                                pagos    = __pagos_reg(d or {}, reg)
-                                prev_liq_pos = max(prev_liq - pagos, 0.0)
-                                snap_ir_a_rec = float(snap_reg.get("ir_a_recolher_tipo", 0.0) or 0.0)
-                                return abs(prev_liq_pos - snap_ir_a_rec) >= 0.01
+                                lst = (_pags_both.get(reg, []) if isinstance(_pags_both, dict) else []) or []
+                                val = _sum_val(lst, key="valor_pago")
                             except Exception:
-                                return False
-
-                        diag_c = (_diag_both.get("comum") if isinstance(_diag_both, dict) else {}) or {}
-                        diag_dt = (_diag_both.get("daytrade") if isinstance(_diag_both, dict) else {}) or {}
-
-                        if __diverge_ir_a_recolher(diag_c, "comum"):
-                            _val = max(__ir_prev_liq(diag_c, "comum") - __pagos_reg(diag_c, "comum"), 0.0)
-                            ir_a_rec_comum_fmt = _fmt_brl(_val)
-
-                        if __diverge_ir_a_recolher(diag_dt, "daytrade"):
-                            _val = max(__ir_prev_liq(diag_dt, "daytrade") - __pagos_reg(diag_dt, "daytrade"), 0.0)
-                            ir_a_rec_dt_fmt = _fmt_brl(_val)
-                    except Exception:
-                        pass
+                                pass
+                        return max(val, 0.0)
+                    def __diverge_ir_a_recolher(d: dict, reg: str) -> bool:
+                        snap_reg = (snap.get(reg) if isinstance(snap, dict) else None)
+                        if not snap_reg:
+                            return False
+                        try:
+                            prev_liq = __ir_prev_liq(d or {}, reg)
+                            pagos    = __pagos_reg(d or {}, reg)
+                            prev_liq_pos = max(prev_liq - pagos, 0.0)
+                            snap_ir_a_rec = float(snap_reg.get("ir_a_recolher_tipo", 0.0) or 0.0)
+                            return abs(prev_liq_pos - snap_ir_a_rec) >= 0.01
+                        except Exception:
+                            return False
+                    diag_c = (_diag_both.get("comum") if isinstance(_diag_both, dict) else {}) or {}
+                    diag_dt = (_diag_both.get("daytrade") if isinstance(_diag_both, dict) else {}) or {}
+                    if __diverge_ir_a_recolher(diag_c, "comum"):
+                        _val = max(__ir_prev_liq(diag_c, "comum") - __pagos_reg(diag_c, "comum"), 0.0)
+                        ir_a_rec_comum_fmt = _fmt_brl(_val)
+                    if __diverge_ir_a_recolher(diag_dt, "daytrade"):
+                        _val = max(__ir_prev_liq(diag_dt, "daytrade") - __pagos_reg(diag_dt, "daytrade"), 0.0)
+                        ir_a_rec_dt_fmt = _fmt_brl(_val)
 
 
                     col_comum, col_dt, col_fii = st.columns(3, gap="small")
@@ -1016,21 +1673,43 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                 if ir_rec < 10:
                                     return ("Não devido", "Consolidado")
                                 return (_fmt_brl(ir_rec), "Devido")
-                            _diag_fii = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+
+                            # Diagnóstico FII do mês (fonte única); usa _epoch() para evitar sujeira
+                            _diag_fii = run_memo(("diag", ano, m, "fii"), lambda: _cached_diag(user_id, ano, m, "fii", _epoch())) or {}
                             total_cons = float(_diag_fii.get("total_considerado", 0.0) or 0.0)
                             sugerido   = float(_diag_fii.get("sugerido_pagar", 0.0) or 0.0)
-                            if total_cons <= 0:
+
+                            if total_cons <= 0.0:
                                 return ("Não devido", "Quitado/sem débito")
-                            if total_cons < 10:
+                            if total_cons < 10.0:
                                 return ("Não devido", "Abaixo do mínimo")
-                            # Desconta pagamentos de FII já registrados neste mês
+
+                            # Pagamentos do mês (preferir ledger/_pags_both/override; fallback para cache oficial)
+                            pags_f = []
                             try:
-                                pags_f = _cached_listar_pag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or []
-                                pagos_f = _sum_val(pags_f, key="valor_pago")
+                                pags_f = (_pags_both.get("fii") if isinstance(_pags_both, dict) else []) or []
+                            except Exception:
+                                pags_f = []
+
+                            # Override local (se existir)
+                            _override_key_fii = f"pag8_pay_override_{ano}_{m}_fii"
+                            if st.session_state.get(_override_key_fii) is not None:
+                                pags_f = st.session_state[_override_key_fii]
+
+                            if not pags_f:
+                                try:
+                                    pags_f = run_memo(("listar_pag", ano, m, "fii"), lambda: _cached_listar_pag(user_id, ano, m, "fii", _epoch())) or []
+                                except Exception:
+                                    pags_f = []
+
+                            try:
+                                pagos_f = sum(float(r.get("valor_pago", 0.0) or 0.0) for r in (pags_f or []))
                             except Exception:
                                 pagos_f = 0.0
+
                             saldo_fii = max((sugerido or 0.0) - (pagos_f or 0.0), 0.0)
-                            return (_fmt_brl(saldo_fii), ("Quitado" if (total_cons >= 10.0 and abs(saldo_fii) < 0.01) else "Provisório"))
+                            badge = "Quitado" if (total_cons >= 10.0 and abs(saldo_fii) < 0.01) else "Devido"
+                            return (_fmt_brl(saldo_fii), badge)
 
                         ir_a_rec_fii_fmt, badge_fii = _ir_e_badge_fii()
 
@@ -1039,7 +1718,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                         f_total_bruto_fmt = _fmt_brl(f_total_bruto)
 
                         # Alinha o card FII com a lógica da aba DARF, usando o diagnóstico do mês
-                        _diag_fii = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+                        _diag_fii = run_memo(("diag", ano, m, "fii"), lambda: _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"])) or {}
                         ir_fii_val = float(_diag_fii.get("ir_devido_mes", 0.0) or 0.0)
                         try:
                             _aliq_fii = float(get_param(supabase, "ALIQUOTA_FII", ano, m, default=0.20)) or 0.20
@@ -1119,6 +1798,38 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                             return "FII"
                         return "Ações"
 
+                    # --- Helpers novos: percentual coerente e sentido (Compra/Venda) ---
+                    def _safe_pct(row):
+                        try:
+                            lucro = float(row.get("lucro_rs", 0.0) or 0.0)
+                            q  = float(row.get("quantidade", 0.0) or 0.0)
+                            pi = float(row.get("preco_inicial", 0.0) or 0.0)
+                            pf = float(row.get("preco_final", 0.0) or 0.0)
+                            denom = max(abs(pi * q), abs(pf * q), 1e-9)  # simétrico e robusto para opções (inclui pf=0)
+                            pct = (abs(lucro) / denom) * 100.0
+                            return pct if lucro >= 0 else -pct
+                        except Exception:
+                            return 0.0
+
+                    def _infer_sentido(row):
+                        """Deduz o sentido de abertura: 'Compra' ou 'Venda'.
+                        Intuição: se o lucro caminha no mesmo sentido da variação (pf - pi), a abertura foi Compra; caso contrário, Venda.
+                        Funciona para à vista e opções (inclui expiração/exercício com preco_final=0)."""
+                        try:
+                            lucro = float(row.get("lucro_rs", 0.0) or 0.0)
+                            q  = float(row.get("quantidade", 0.0) or 0.0)
+                            pi = float(row.get("preco_inicial", 0.0) or 0.0)
+                            pf = float(row.get("preco_final", 0.0) or 0.0)
+                            diff = (pf - pi) * q
+                            if abs(lucro) < 1e-6 and abs(diff) < 1e-6:
+                                return "Compra"
+                            return "Compra" if ((diff >= 0 and lucro >= 0) or (diff <= 0 and lucro <= 0)) else "Venda"
+                        except Exception:
+                            return "Compra"
+
+                    # Mapeamento de exibição para a coluna "Ponta"
+                    _PONTA_MAP = {"Compra": "Compradora", "Venda": "Vendedora", "Misto": "Mista"}
+
                     if not df.empty:
                         try:
                             df["mercado_cls"] = df.apply(_classify_row, axis=1)
@@ -1139,12 +1850,18 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                         # Coluna auxiliar para cálculo de base (pi * q) ao agrupar
                         df["_base_pi_q"] = df["preco_inicial"].fillna(0) * df["quantidade"].fillna(0)
                         df["_base_pf_q"] = df["preco_final"].fillna(0) * df["quantidade"].fillna(0)
+                        # Precomputar sentido de abertura (Compra/Venda) para cada linha
+                        df["_sentido"] = df.apply(_infer_sentido, axis=1)
 
                         # Exibição sem agrupamento
                         if not agrupar:
                             # No agrupamento desligado, apenas copia df (já contém "custo")
                             df_exibir = df.copy()
                             df_exibir["mercado"] = df_exibir.get("mercado_cls", df_exibir.get("mercado"))
+                            # (Re)calcula percentual coerente e Sentido por linha
+                            df_exibir["lucro_pct"] = df_exibir.apply(_safe_pct, axis=1)
+                            df_exibir["Sentido"]   = df_exibir.apply(_infer_sentido, axis=1)
+                            df_exibir["Ponta"] = df_exibir["Sentido"].map(_PONTA_MAP).fillna(df_exibir["Sentido"])
 
                         else:
                             # Agrupamento por ticker + tipo (+ mercado para não confundir à vista e opções)
@@ -1155,6 +1872,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                 _base_pf_total=("_base_pf_q", "sum"),
                                 custo=("custo", "sum"),
                                 data=("data", "max"),
+                                sentido=("_sentido", lambda s: s.iloc[0] if s.nunique() == 1 else "Misto"),
                             )
 
                             # Preços médios ponderados por quantidade
@@ -1165,14 +1883,13 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                 lambda r: (r["_base_pf_total"] / r["quantidade"]) if r["quantidade"] else 0.0, axis=1
                             )
 
-                            # Lucro % ponderado pela base total investida
-                            grp["lucro_pct"] = grp.apply(
-                                lambda r: (100.0 * r["lucro_rs"] / r["_base_pi_total"]) if r["_base_pi_total"] else 0.0,
-                                axis=1
-                            )
+                            # Percentual coerente com sinal do lucro (robusto para opções)
+                            grp["lucro_pct"] = grp.apply(_safe_pct, axis=1)
 
                             # Não remover a coluna "custo"
                             grp = grp.rename(columns={"mercado_cls":"mercado"})
+                            grp = grp.rename(columns={"sentido": "Sentido"})
+                            grp["Ponta"] = grp["Sentido"].map(_PONTA_MAP).fillna(grp["Sentido"])
                             df_exibir = grp.drop(columns=["_base_pi_total", "_base_pf_total"])
 
                         # Ordenação padrão: data asc, ticker
@@ -1186,6 +1903,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                             "mercado": "Mercado",
                             "ticker": "Ticker",
                             "tipo": "Tipo",
+                            "Ponta": "Ponta",
                             "quantidade": "Quant.",
                             "preco_inicial": "Preço Inicial",
                             "preco_final": "Preço Final",
@@ -1195,7 +1913,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                         })
                         # Seleciona colunas na ordem desejada (mantendo tipos numéricos)
                         # "Custo" não exibido em df_vis
-                        df_vis = df_exibir[["Data","Mercado","Ticker","Tipo","Quant.","Preço Inicial","Preço Final","Lucro (R$)*","Lucro (%)"]].copy()
+                        df_vis = df_exibir[["Data","Mercado","Ticker","Tipo","Ponta","Quant.","Preço Inicial","Preço Final","Lucro (R$)*","Lucro (%)"]].copy()
 
                         # Funções de formatação BR (sem converter tipo do DataFrame)
                         def _fmt_brl(x):
@@ -1245,6 +1963,21 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                             width='stretch',
                             hide_index=True,
                         )
+                        # --- Total do mês para a coluna "Lucro (R$)*" (exibição abaixo da tabela) ---
+                        try:
+                            _total_lucro_mes = float(df_vis["Lucro (R$)*"].sum() or 0.0)
+                        except Exception:
+                            _total_lucro_mes = 0.0
+                        _total_color = "#4CAF50" if _total_lucro_mes > 0 else ("#e53935" if _total_lucro_mes < 0 else "rgba(255,255,255,.85)")
+                        st.markdown(
+                            f"""
+                            <div class="ir-inline" style="justify-content:flex-end; margin-top:.25rem;">
+                              <div class="ir-label">Total do mês</div>
+                              <div class="ir-value" style="margin-left:.5rem; color:{_total_color};">{_fmt_brl(_total_lucro_mes)}</div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                         st.caption("*Lucro ajustado depois de Custos Operacionais")
                 with sub_tabs[2]:
                     # ===== UI da aba DARF: sub-abas para Comum e Day Trade =====
@@ -1271,18 +2004,11 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     totc_dt = float((diag_dt    or {}).get("total_considerado", 0.0) or 0.0)
                     totc_f  = float((diag_fii   or {}).get("total_considerado", 0.0) or 0.0)
 
-                    # Pagos no mês por regime (UI visível) — tenta ledger primeiro
-                    pags_c  = _pags_from_ledger.get("comum") if isinstance(_pags_from_ledger, dict) else None
-                    pags_dt = _pags_from_ledger.get("daytrade") if isinstance(_pags_from_ledger, dict) else None
-                    pags_f  = _pags_from_ledger.get("fii") if isinstance(_pags_from_ledger, dict) else None
-
-                    # Fallback para os helpers existentes quando o ledger não trouxe listas detalhadas
-                    if not isinstance(pags_c, list):
-                        pags_c = (_pags_both.get("comum") if isinstance(_pags_both, dict) else []) or []
-                    if not isinstance(pags_dt, list):
-                        pags_dt = (_pags_both.get("daytrade") if isinstance(_pags_both, dict) else []) or []
-                    if not isinstance(pags_f, list):
-                        pags_f = _cached_listar_pag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or []
+                  # Pagos no mês por regime (fonte única, centralizada)
+                    _pags_both = _pags_from_ledger if isinstance(_pags_from_ledger, dict) else {}
+                    pags_c  = _pag8_pags_for(user_id, ano, m, "comum", _pags_both)
+                    pags_dt = _pag8_pags_for(user_id, ano, m, "daytrade", _pags_both)
+                    pags_f  = _pag8_pags_for(user_id, ano, m, "fii", _pags_both)
 
                     def _sum_val(lst):
                         try:
@@ -1290,12 +2016,25 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                         except Exception:
                             return 0.0
 
+
                     try:
                         pagos_c = float(sum_pagamentos_darf(supabase_autenticado(), user_id, ano, m, "comum") or 0.0)
                     except Exception:
                         pagos_c = 0.0
                     if pagos_c <= 0.0:
                         pagos_c = _sum_val(pags_c)
+
+                    # Badge da PRÉVIA (Comum) com base nos mesmos números exibidos no card do tipo
+                    def _badge_from_tipo(total_cons: float, pagos: float) -> str:
+                        tc = float(total_cons or 0.0)
+                        pg = float(pagos or 0.0)
+                        if tc <= 0.0:
+                            return "Não devido"
+                        if tc < 10.0:
+                            return "Abaixo do mínimo"
+                        return "Devido" if (tc - pg) > 0.01 else "Quitado"
+
+                    badge_c_prev = _badge_from_tipo(totc_c, pagos_c)
 
                     try:
                         pagos_dt = float(sum_pagamentos_darf(supabase_autenticado(), user_id, ano, m, "daytrade") or 0.0)
@@ -1311,10 +2050,24 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     if pagos_f <= 0.0:
                         pagos_f = _sum_val(pags_f)
 
+                    # Helper unificado para badge do card de PRÉVIA (segue a regra do mínimo com base nos mesmos números exibidos)
+                    def _badge_from(total_considerado: float, pagos: float) -> str:
+                        try:
+                            tc = float(total_considerado or 0.0)
+                            pg = float(pagos or 0.0)
+                        except Exception:
+                            tc, pg = 0.0, 0.0
+                        if tc <= 0.0:
+                            return "Não devido"
+                        if tc < 10.0:
+                            return "Abaixo do mínimo"
+                        return "Devido" if (tc - pg) > 0.01 else "Quitado"
+
+                    # Totais agregados (usados nas mesmas linhas do card)
                     ir_total     = ir_c + ir_dt + ir_f
                     carry_total  = carry_c + carry_dt + carry_f
-                    tot_cons_all = totc_c + totc_dt + totc_f
-                    pagos_total  = pagos_c + pagos_dt + pagos_f
+                    tot_cons_all = float(totc_c or 0.0) + float(totc_dt or 0.0) + float(totc_f or 0.0)
+                    pagos_total  = float(pagos_c or 0.0) + float(pagos_dt or 0.0) + float(pagos_f or 0.0)
 
                     # IRRF Total do mês (Comum + Day Trade). FII não tem IRRF
                     irrf_c  = float((diag_comum or {}).get("irrf_retido", 0.0) or 0.0)
@@ -1331,30 +2084,57 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                             pass
                     irrf_total = irrf_c + irrf_dt
 
+                    # Badge e sugerido calculados a partir dos mesmos valores exibidos no card
+                    badge_total = _badge_from(tot_cons_all, pagos_total)
                     if tot_cons_all < 10.0:
-                        badge_total = "Abaixo do mínimo"
                         sugerido_total = 0.0
                         sugerido_total_fmt = "Não devido (&lt; R$ 10)"
                     else:
-                        badge_total = "Devido" if (tot_cons_all - pagos_total) > 0 else "Quitado"
                         sugerido_total = max(tot_cons_all - pagos_total, 0.0)
                         sugerido_total_fmt = _fmt_brl(sugerido_total)
 
+                    # [BADGE-TOTAL-P1] Badge do card PRÉVIA DE IR (Total) baseado na prévia TOTAL corrigida (ledger IRRF)
+                    try:
+                        _pc_tot = _previa_corrigida_total(user_id, ano, m, st.session_state["pag8_cache_epoch"]) or {}
+                        _tot_cons = float(_pc_tot.get("total_cons_corr_total", 0.0) or 0.0)
+                        _pagos    = float(_pc_tot.get("pagos_total", 0.0) or 0.0)
+                        _saldo    = max(_tot_cons - _pagos, 0.0)
+                        sugerido_total = float(_pc_tot.get("sugerido_total", 0.0) or 0.0)
+
+                        badge_total_text  = "Devido"
+                        badge_total_color = "#e53935"  # vermelho
+                        badge_total_tip   = ""
+
+                        # depois
+                        if _tot_cons <= 0.0:
+                            badge_total_text, badge_total_color = "Isento", "#9e9e9e"
+                            badge_total_tip = "Sem imposto devido"
+                        elif 0.0 < _tot_cons < 10.0:
+                            badge_total_text, badge_total_color = "Abaixo do mínimo", "#9e9e9e"
+                            badge_total_tip = "Transportado para o próximo mês"
+                        elif abs(_saldo) < 0.01:
+                            badge_total_text, badge_total_color = "Quitado", "#43A047"
+                            badge_total_tip = "Sem saldo a pagar"
+                        elif _saldo >= 10.0 and _pagos > 0.0:
+                            badge_total_text, badge_total_color = "Pago –", "#FB8C00"
+                            badge_total_tip = "Pagamento parcial registrado"
+                    except Exception:
+                        badge_total_text, badge_total_color, badge_total_tip = "Devido", "#e53935", ""
                     # Card único de PRÉVIA TOTAL
                     st.markdown(
                         f"""
                         <div class="ir-card" style="margin-bottom:.5rem;">
                           <div class="ir-head">
                             <div class="ir-title">PRÉVIA DE IR (Total)</div>
-                            <span class="ir-pill">{badge_total}</span>
+                            <span class="ir-pill" title="{badge_total_tip}" style="border-color:{badge_total_color}; color:{badge_total_color};">{badge_total_text}</span>
                           </div>
                           <div class="ir-row"><div class="ir-label">Comum – IR devido</div><div class="ir-value">{_fmt_brl(ir_c)}</div></div>
                           <div class="ir-row"><div class="ir-label">Day Trade – IR devido</div><div class="ir-value">{_fmt_brl(ir_dt)}</div></div>
                           <div class="ir-row"><div class="ir-label">FII – IR devido</div><div class="ir-value">{_fmt_brl(ir_f)}</div></div>
                           <div class="ir-row"><div class="ir-label">Carry &lt; R$ 10 (soma)</div><div class="ir-value">{_fmt_brl(carry_total)}</div></div>
-                          <div class="ir-row"><div class="ir-label">IRRF retido do mês (Comum + Day Trade)</div><div class="ir-value">{_fmt_brl(irrf_total)}</div></div>
+                          <div class="ir-row"><div class="ir-label">IRRF retido do mês (Comum + Day Trade)</div><div class="ir-value">{_irrf_disp_fmt_total_html(user_id, ano, m, st.session_state["pag8_cache_epoch"])}</div></div>
                           <div class="ir-row"><div class="ir-label">Pagamentos do mês (soma)</div><div class="ir-value">{_fmt_brl(pagos_total)}</div></div>
-                          <div class="ir-row"><div class="ir-label">Sugerido a pagar agora (Total)</div><div class="ir-value">{sugerido_total_fmt}</div></div>
+                          <div class="ir-row"><div class="ir-label">Sugerido a pagar agora (Total)</div><div class="ir-value">{_fmt_brl(sugerido_total)}</div></div>
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -1396,6 +2176,15 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                 status_min = str(diag.get("status_minimo", ""))
                                 ir_mes     = float(diag.get("ir_devido_mes", 0.0))
                                 carry10    = float(diag.get("carry_sub10", 0.0))
+                                # [DARF-P3a] Override: usar prévia corrigida pelo ledger do IRRF para total_cons/pagos/sugerido (Comum/DT)
+                                try:
+                                    if tipo_darf in ("comum", "daytrade"):
+                                        _pc = _previa_corrigida_regime(user_id, ano, m, tipo_darf, st.session_state["pag8_cache_epoch"]) or {}
+                                        total_cons = float(_pc.get("total_cons_corr", total_cons))
+                                        pagos_mes  = float(_pc.get("pagos_mes", pagos_mes))
+                                        sugerido   = float(_pc.get("sugerido_agora", sugerido))
+                                except Exception:
+                                    pass
                                 # Delta local (on-the-fly): PRÉVIA líquida de IRRF vs snapshot atual
                                 snap_rec = (snap.get(tipo_darf) if isinstance(snap, dict) else None)
                                 try:
@@ -1488,10 +2277,7 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                 _carry_label_html += ' <span title="Inclui saldo carregado de dezembro do ano anterior (regra do mínimo)." style="opacity:.85; cursor:help;">ℹ️</span>'
 
                             # --- Listagem de pagamentos do mês/regime ---
-                            if tipo_darf == "fii":
-                                pagamentos = _cached_listar_pag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or []
-                            else:
-                                pagamentos = (_pags_both.get(tipo_darf) if isinstance(_pags_both, dict) else []) or []
+                            pagamentos = _pag8_pags_for(user_id, ano, m, tipo_darf, _pags_both)
 
                             # --- Override local para refletir exclusões imediatamente (sem depender do cache/refresh)
                             override_key = f"pag8_pay_override_{ano}_{m}_{tipo_darf}"
@@ -1561,16 +2347,71 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                                     except Exception:
                                         pass
                             irrf_row_html = (
-                                f'<div class="ir-row"><div class="ir-label">IRRF retido do mês</div><div class="ir-value">{_fmt_brl(irrf_mes)}</div></div>'
+                                f'<div class="ir-row"><div class="ir-label">IRRF retido do mês</div><div class="ir-value">{_irrf_disp_fmt_html(user_id, ano, m, tipo_darf, st.session_state["pag8_cache_epoch"])}</div></div>'
                                 if tipo_darf in ("comum", "daytrade") else ''
                             )
 
+                            # [PTP-02] Badge do card PRÉVIA DE IR (por tipo) usando a prévia corrigida
+                            badge_tipo_text  = "Devido"
+                            badge_tipo_color = "#e53935"
+                            badge_tipo_tip   = ""
+                            try:
+                                if tipo_darf in ("comum", "daytrade"):
+                                    pc = _previa_corrigida_regime(user_id, ano, m, tipo_darf, st.session_state["pag8_cache_epoch"]) or {}
+                                    tot  = float(pc.get("total_cons_corr", 0.0) or 0.0)
+                                    pagos = float(pc.get("pagos_mes", 0.0) or 0.0)
+                                    saldo = max(tot - pagos, 0.0)
+                                    if tot <= 0.0:
+                                        badge_tipo_text, badge_tipo_color = "Isento", "#9e9e9e"
+                                        badge_tipo_tip = "Sem imposto devido"
+                                    elif 0.0 < tot < 10.0:
+                                        badge_tipo_text, badge_tipo_color = "Abaixo do mínimo", "#9e9e9e"
+                                        badge_tipo_tip = "Transportado para o próximo mês"
+                                    elif abs(saldo) < 0.01:
+                                        badge_tipo_text, badge_tipo_color = "Quitado", "#43A047"
+                                        badge_tipo_tip = "Sem saldo a pagar"
+                                    elif saldo >= 10.0 and pagos > 0.0:
+                                        badge_tipo_text, badge_tipo_color = "Pago –", "#FB8C00"
+                                        badge_tipo_tip = "Pagamento parcial registrado"
+                                    else:
+                                        badge_tipo_text, badge_tipo_color = "Devido", "#e53935"
+                                        badge_tipo_tip = "Nenhum pagamento"
+                                else:  # FII (sem IRRF)
+                                    _diag_fii_local = _cached_diag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or {}
+                                    tot = float(_diag_fii_local.get("total_considerado", 0.0) or 0.0)
+                                    # pagamentos FII
+                                    try:
+                                        pagos = float(sum_pagamentos_darf(supabase_autenticado(), user_id, ano, m, "fii") or 0.0)
+                                    except Exception:
+                                        pagamentos = _cached_listar_pag(user_id, ano, m, "fii", st.session_state["pag8_cache_epoch"]) or []
+                                        pagos = _sum_val(pagamentos, key="valor_pago")
+                                    saldo = max(tot - pagos, 0.0)
+                                    if tot <= 0.0:
+                                        badge_tipo_text, badge_tipo_color = "Isento", "#9e9e9e"
+                                        badge_tipo_tip = "Sem imposto devido"
+                                    elif 0.0 < tot < 10.0:
+                                        badge_tipo_text, badge_tipo_color = "Abaixo do mínimo", "#9e9e9e"
+                                        badge_tipo_tip = "Transportado para o próximo mês"
+                                    elif abs(saldo) < 0.01:
+                                        badge_tipo_text, badge_tipo_color = "Quitado", "#43A047"
+                                        badge_tipo_tip = "Sem saldo a pagar"
+                                    elif saldo >= 10.0 and pagos > 0.0:
+                                        badge_tipo_text, badge_tipo_color = "Pago –", "#FB8C00"
+                                        badge_tipo_tip = "Pagamento parcial registrado"
+                                    else:
+                                        badge_tipo_text, badge_tipo_color = "Devido", "#e53935"
+                                        badge_tipo_tip = "Nenhum pagamento"
+                            except Exception:
+                                pass
+
+                            # Escolhe o badge a exibir na pill do card por TIPO (usa o cálculo específico do Comum quando aplicável)
+                            _badge_to_show = badge_c_prev if (tipo_darf == "comum") else badge
                             st.markdown(
                                 f"""
                                 <div class="ir-card" style="margin-bottom: .5rem;">
                                   <div class="ir-head">
                                     <div class="ir-title">PRÉVIA DE IR</div>
-                                    <span class="ir-pill">{badge}</span>
+                                    <span class="ir-pill" title="{badge_tipo_tip}" style="border-color:{badge_tipo_color}; color:{badge_tipo_color};">{badge_tipo_text}</span>
                                     {_delta_pill_html}
                                   </div>
                                   <div class="ir-row"><div class="ir-label">IR devido (mês)</div><div class="ir-value">{_fmt_brl(ir_mes)}</div></div>

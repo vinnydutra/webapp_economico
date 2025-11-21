@@ -9,7 +9,7 @@ from utils_ir import (
     pf_can_delete,
     normalizar_valor_parametro,
 )
-from utils import supabase_autenticado
+from utils import supabase_autenticado, get_logo_img_tag
 import re
 
 ALLOWED_KEYS = [
@@ -19,6 +19,12 @@ ALLOWED_KEYS = [
     "LIMITE_ISENCAO_ACOES",
     "LIMIAR_MINIMO_DARF",
 ]
+
+def _normalize_ticker_logo(value: str) -> str:
+    return (value or "").upper().replace(".SA", "")
+
+def _ticker_display(value: str) -> str:
+    return _normalize_ticker_logo(value)
 
 # Normaliza string de valor conforme tipo de chave (delegado ao utils_ir)
 def _normalize_valor(chave: str, valor_str: str) -> str:
@@ -128,7 +134,7 @@ else:
     edited = st.data_editor(
         show_df.assign(Excluir=False),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         num_rows="fixed",
         column_config={
             "Chave": st.column_config.TextColumn("Chave", disabled=True),
@@ -233,7 +239,7 @@ else:
         "efetivo_ate": "Efetivo Até",
         "created_at": "Criado Em",
     })
-    st.dataframe(adf, use_container_width=True)
+    st.dataframe(adf, width="stretch")
 
 # Inclusão de novo parâmetro (com vigência)
 st.subheader("➕ Incluir novo parâmetro")
@@ -264,3 +270,91 @@ with st.form("form_novo_param", clear_on_submit=True):
                 st.rerun()
         except Exception as e:
             st.error(f"Erro ao incluir novo parâmetro: {e}")
+
+# --- Consolidação de logos existentes ---
+def _q_logos(sb):
+    return sb.table("tickers_logos").select("*").order("ticker").execute()
+
+try:
+    logo_resp = _retry_jwt(_q_logos) if _retry_jwt else _q_logos(supabase)
+    logo_rows = logo_resp.data or []
+    logo_map = {_normalize_ticker_logo(row.get("ticker")): row for row in logo_rows}
+except Exception as e:
+    logo_rows = []
+    logo_map = {}
+    st.error(f"Não foi possível carregar os logos salvos: {e}")
+
+
+st.subheader("📋 Tickers com logos exibidos atualmente")
+st.caption(
+    "Consolidamos todos os tickers já presentes em `carteira` ou `ativos_vendidos` e mostramos abaixo o que o app renderiza hoje."
+)
+
+def _q_all_carteira(sb):
+    return sb.table("carteira").select("ticker").execute()
+
+def _q_all_vendidos(sb):
+    return sb.table("ativos_vendidos").select("ticker").execute()
+
+try:
+    resp_carteira = _retry_jwt(_q_all_carteira) if _retry_jwt else _q_all_carteira(supabase)
+    resp_vendidos = _retry_jwt(_q_all_vendidos) if _retry_jwt else _q_all_vendidos(supabase)
+    tickers_carteira = {_normalize_ticker_logo(row.get("ticker")) for row in (resp_carteira.data or []) if row.get("ticker")}
+    tickers_vendidos = {_normalize_ticker_logo(row.get("ticker")) for row in (resp_vendidos.data or []) if row.get("ticker")}
+    tickers_unicos = sorted(tickers_carteira.union(tickers_vendidos))
+except Exception as e:
+    tickers_unicos = []
+    st.error(f"Não foi possível carregar os tickers consolidados: {e}")
+
+if tickers_unicos:
+    chunk_size = 5
+    for i in range(0, len(tickers_unicos), chunk_size):
+        cols = st.columns(chunk_size)
+        for col, ticker in zip(cols, tickers_unicos[i:i + chunk_size]):
+            logo_html = get_logo_img_tag(ticker, size=56)
+            col.markdown(f"**{_ticker_display(ticker)}**")
+            col.markdown(logo_html, unsafe_allow_html=True)
+
+            ticker_norm = _normalize_ticker_logo(ticker)
+            if col.button("Editar logo", key=f"edit-logo-{ticker_norm}"):
+                st.session_state["logo_edit_ticker"] = ticker_norm
+else:
+    st.info("Nenhum ticker encontrado nas tabelas `carteira` ou `ativos_vendidos`.")
+
+edit_ticker = st.session_state.get("logo_edit_ticker")
+if edit_ticker:
+    st.markdown("---")
+    st.subheader(f"✏️ Editar logo para {edit_ticker}")
+    meta = logo_map.get(edit_ticker) or {}
+    default_url = meta.get("logo_url") or ""
+    default_domain = meta.get("domain") or ""
+    default_source = meta.get("source") or "manual"
+
+    with st.form("form_editar_logo", clear_on_submit=False):
+        url_logo = st.text_input("Logo URL (https://...)", value=default_url, placeholder="https://logo.exemplo.com/arquivo.png")
+        dominio_logo = st.text_input("Domínio (opcional, usado como fallback Clearbit)", value=default_domain, placeholder="empresa.com.br")
+        fonte_logo = st.text_input("Fonte (informativo)", value=default_source)
+        submitted = st.form_submit_button("Salvar logo")
+
+        if submitted:
+            payload = {
+                "ticker": edit_ticker,
+                "logo_url": url_logo.strip() or None,
+                "domain": dominio_logo.strip() or None,
+                "source": (fonte_logo or "manual").strip(),
+            }
+
+            def _upsert_logo(sb, item=payload):
+                return sb.table("tickers_logos").upsert(item).execute()
+
+            try:
+                _retry_jwt(_upsert_logo) if _retry_jwt else _upsert_logo(supabase)
+                st.success(f"Logo atualizado para {edit_ticker}.")
+                st.session_state.pop("logo_edit_ticker", None)
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar logo: {e}")
+
+    if st.button("Cancelar edição", key="cancelar-edicao-logo"):
+        st.session_state.pop("logo_edit_ticker", None)
+        st.rerun()

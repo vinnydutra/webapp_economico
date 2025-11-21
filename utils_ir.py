@@ -9,15 +9,80 @@ import re
 from datetime import datetime, date
 
 import time as _time
+import time
 import os
 
+
 from decimal import Decimal, ROUND_HALF_UP
+
+# --- Perf helpers (ligados por variável de ambiente IR_PERF) ---
+def _perf_enabled() -> bool:
+    try:
+        v = str(os.getenv("IR_PERF", "1") or "1").strip().lower()
+        return v in {"1", "true", "on", "yes"}
+    except Exception:
+        return False
+
+def _t_now():
+    try:
+        return time.perf_counter()
+    except Exception:
+        return 0.0
+
+def _perf(msg: str):
+    try:
+        if _perf_enabled():
+            print(f"[PERF] {msg}")
+    except Exception:
+        pass
+
+# --- memoização leve por execução da página (evita recomputos custosos) ---
+_CARRY_MEMO = {}
+
+# --- debounce por sessão para evitar reruns em loop (controle fino) ---
+def _now_s():
+    try:
+        return _time.time()
+    except Exception:
+        return 0.0
+
+def _debounce_key(tag: str, window_s: float = 1.5) -> bool:
+    """Retorna True se devemos DEBOUNCE (i.e., pular recomputo) para esta tag.
+    Usa st.session_state para memorizar o último instante por tag.
+    """
+    try:
+        store = st.session_state.setdefault("_debounce_ir", {})
+        last = float(store.get(tag, 0.0) or 0.0)
+        now = _now_s()
+        if (now - last) < float(window_s):
+            return True
+        store[tag] = now
+        return False
+    except Exception:
+        return False
+
+def _get_last_result(tag: str):
+    """Lê o último resultado bem-sucedido armazenado na sessão para uma tag."""
+    try:
+        return st.session_state.get("_ir_last_results", {}).get(tag)
+    except Exception:
+        return None
+
+def _set_last_result(tag: str, value):
+    """Grava/atualiza o último resultado na sessão para uma tag."""
+    try:
+        store = st.session_state.setdefault("_ir_last_results", {})
+        store[tag] = value
+    except Exception:
+        pass
 
 __all__ = [
     "calcular_status_mes",
     "bump_ir_epoch",
     "ler_snapshot_ativo_mes",
     "carregar_ledger_mensal",
+    "is_mes_sujo",
+    "marcar_mes_calculado",
 ]
 
 # Epoch global para invalidação imediata de caches entre páginas de IR
@@ -30,6 +95,42 @@ def bump_ir_epoch():
     except Exception:
         # fallback silencioso
         return None
+
+# --- Helpers de "sujeira" para UX (forçar botão "Calcular este mês") ---
+def _get_epoch_safe() -> int:
+    try:
+        return int(st.session_state.get("ir_epoch", 0) or 0)
+    except Exception:
+        return 0
+
+
+def is_mes_sujo(ano: int, mes: int) -> bool:
+    """Retorna True quando houve um bump global de epoch **depois** do último
+    cálculo confirmado para essa competência (ano/mes).
+
+    A UI pode usar isso para decidir exibir o botão "Calcular este mês".
+    """
+    try:
+        cur = _get_epoch_safe()
+        key = f"epoch_calc_{int(ano)}_{int(mes)}"
+        last = int(st.session_state.get(key, -1) or -1)
+        return cur > last
+    except Exception:
+        return True  # conservador: se não der para ler, tratar como sujo
+
+
+def marcar_mes_calculado(ano: int, mes: int) -> int:
+    """Marca que a competência (ano/mes) foi **recalculada** com sucesso sob o
+    epoch atual, permitindo que a UI considere o mês "limpo" até novo bump.
+
+    Retorna o epoch gravado.
+    """
+    try:
+        cur = _get_epoch_safe()
+        st.session_state[f"epoch_calc_{int(ano)}_{int(mes)}"] = cur
+        return cur
+    except Exception:
+        return 0
 
 # =========================
 # Arredondamento consistente para cálculos de IR
@@ -51,7 +152,12 @@ def calcular_status_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
       {"rotulo": str, "valor": float, "minimo_aplicado": bool}
     """
     try:
-        bases_pos = apurar_compensacao_mes(supabase, user_id, ano, mes)  # já contém ir_devido por regime pós-comp.
+        _epoch_dep = None
+        try:
+            _epoch_dep = st.session_state.get("ir_epoch", 0)
+        except Exception:
+            _epoch_dep = None
+        bases_pos = apurar_compensacao_mes(supabase, user_id, ano, mes, __dep_epoch=_epoch_dep)  # já contém ir_devido por regime pós-comp.
     except Exception:
         bases_pos = {"NORMAL": {}, "DAYTRADE": {}, "FII": {}}
 
@@ -74,9 +180,9 @@ def calcular_status_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
     # Pagamentos (todas as naturezas)
     pagos = 0.0
     try:
-        pagos += sum_pagamentos_darf(supabase, user_id, ano, mes, "comum") or 0.0
-        pagos += sum_pagamentos_darf(supabase, user_id, ano, mes, "daytrade") or 0.0
-        pagos += sum_pagamentos_darf(supabase, user_id, ano, mes, "fii") or 0.0
+        pagos += sum_pagamentos_darf(supabase, user_id, ano, mes, "comum", __dep_epoch=_epoch_dep) or 0.0
+        pagos += sum_pagamentos_darf(supabase, user_id, ano, mes, "daytrade", __dep_epoch=_epoch_dep) or 0.0
+        pagos += sum_pagamentos_darf(supabase, user_id, ano, mes, "fii", __dep_epoch=_epoch_dep) or 0.0
     except Exception:
         pass
 
@@ -86,19 +192,21 @@ def calcular_status_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
     except Exception:
         minimo = MINIMO_DARF
 
+    sujo_flag = is_mes_sujo(ano, mes)
+
     # Classificação
     if total_considerado <= 0.0:
-        return {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False}
+        return {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False, "sujo": sujo_flag}
 
     if total_considerado < minimo:
         # abaixo do mínimo: nada a pagar; carrega adiante
-        return {"rotulo": "Abaixo do mínimo", "valor": 0.0, "minimo_aplicado": True}
+        return {"rotulo": "Abaixo do mínimo", "valor": 0.0, "minimo_aplicado": True, "sujo": sujo_flag}
 
     devido = max(total_considerado - pagos, 0.0)
     if devido > 0.0:
-        return {"rotulo": "Devido", "valor": round(devido, 2), "minimo_aplicado": False}
+        return {"rotulo": "Devido", "valor": round(devido, 2), "minimo_aplicado": False, "sujo": sujo_flag}
     else:
-        return {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False}
+        return {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False, "sujo": sujo_flag}
 
 def _br_round(x) -> Decimal:
     """Arredondamento consistente em 2 casas decimais para cálculos de IR."""
@@ -132,6 +240,17 @@ ALLOWLIST_ETFS: set[str] = {
     "XINA","XFIX","GURU","MOSI","ESGD","ESGU","ESGE","CLMA",
     # Diversos conhecidos (pode conter sobreposição)
     "IVVC","IVOG","IVOM","SPXV","SMLL","SMAC","BOVA","BOVX",
+}
+
+# Lista explícita de "units 11" que **não** são FIIs (exceções à heurística do sufixo '11')
+# Observação: manter os núcleos sem sufixo de mercado (sem '.SA')
+NON_FII_UNITS_11: set[str] = {
+    "KLBN11",  # Klabin (Unit)
+    "TAEE11",  # Taesa (Unit)
+    "SANB11",  # Santander (Unit)
+    "SULA11",  # SulAmérica (Unit)
+    "ALUP11",  # Alupar (Unit)
+    "BPAC11",  # BTG Pactual (Unit)
 }
 def _ticker_core_no_market(t: str) -> str:
     """Remove sufixos de mercado (ex.: '.SA') e espaços; retorna em maiúsculas."""
@@ -187,6 +306,10 @@ def is_fii_ticker(ticker: Optional[str]) -> bool:
     if not ticker:
         return False
     core = _ticker_core_no_market(str(ticker))
+    # Exceção: units que terminam em '11' mas **não** são FIIs
+    if core in NON_FII_UNITS_11:
+        return False
+    # FII somente se termina com '11' e **não** é ETF
     if not re.search(r"11$", core):
         return False
     return not is_etf_core(core)
@@ -214,7 +337,7 @@ def classificar_ticker(ticker: Optional[str]) -> str:
 # ===== Feature flag: cache interno leve (competitivo com Streamlit)
 # Desative por padrão para evitar conflito com @st.cache_data na camada de página.
 # Pode ser reativado via variável de ambiente UTILS_IR_INTERNAL_CACHE ∈ {1,true,on,yes}.
-USE_INTERNAL_CACHE = False
+USE_INTERNAL_CACHE = True
 def _internal_cache_enabled() -> bool:
     try:
         if USE_INTERNAL_CACHE:
@@ -223,6 +346,7 @@ def _internal_cache_enabled() -> bool:
         return v in {"1", "true", "on", "yes"}
     except Exception:
         return False
+
 
 _CACHE_TTL = 60.0  # segundos
 _CACHE = {
@@ -237,7 +361,30 @@ _CACHE = {
     "snapshot_mes": {},
     "diag_mes": {},
     "params": {},
+    "ops_ano": {},
 }
+
+# --- Memo rápido e sempre ligado para parametros_fiscais (independente do USE_INTERNAL_CACHE)
+_PARAMS_MEMO: dict[tuple[str, str], tuple[float, Any]] = {}
+_PARAMS_TTL: float = 180.0  # segundos
+
+def _params_memo_get(ck: tuple[str, str]):
+    try:
+        ts, val = _PARAMS_MEMO.get(ck, (0.0, None))
+        if (_time.time() - float(ts)) <= _PARAMS_TTL:
+            return val
+        # expirou
+        _PARAMS_MEMO.pop(ck, None)
+    except Exception:
+        pass
+    return None
+
+
+def _params_memo_set(ck: tuple[str, str], value: Any):
+    try:
+        _PARAMS_MEMO[ck] = (_time.time(), value)
+    except Exception:
+        pass
 
 def _ck_user(user_id: str) -> tuple:
     return (user_id,)
@@ -292,6 +439,116 @@ def _cache_invalidate(bucket: str, key: tuple):
 
 
 # -------------------------
+# Cache anual de linhas brutas (reduz I/O entre chamadas no mesmo run)
+def _get_rows_vista_ano(_supabase, user_id: str, ano: int) -> list[dict]:
+    try:
+        _epoch = int(st.session_state.get("ir_epoch", 0) or 0)
+    except Exception:
+        _epoch = 0
+    key = ("vista", str(user_id), int(ano), _epoch)
+    bucket = _CACHE.get("ops_ano")
+    if _internal_cache_enabled() and isinstance(bucket, dict) and key in bucket:
+        return bucket[key]
+    try:
+        inicio = f"{int(ano)}-01-01"
+        fim = f"{int(ano) + 1}-01-01"
+        t0 = time.perf_counter()
+        resp = (
+            _supabase.table("ativos_vendidos")
+            .select("data_compra,data_venda,ticker,quantidade,preco_compra,preco_venda,custo_operacional,irrf")
+            .eq("user_id", user_id)
+            .gte("data_venda", inicio)
+            .lt("data_venda", fim)
+            .execute()
+        )
+        t1 = time.perf_counter()
+        print(f"[PERF] _get_rows_vista_ano: {(t1 - t0):.3f}s para executar query Supabase")
+        rows = getattr(resp, "data", []) or []
+    except Exception:
+        rows = []
+    # Fallback: se a query por intervalo vier vazia (pode acontecer se data_venda estiver como texto),
+    # busca todas as linhas do usuário e filtra na camada Python.
+    if not rows:
+        try:
+            resp2 = (
+                _supabase.table("ativos_vendidos")
+                .select("data_compra,data_venda,ticker,quantidade,preco_compra,preco_venda,custo_operacional,irrf")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            rows = getattr(resp2, "data", []) or []
+        except Exception:
+            rows = []
+    # memo anual em memória de processo
+    if _internal_cache_enabled() and isinstance(bucket, dict):
+        bucket[key] = rows
+    return rows
+
+def _get_rows_opcoes_operacoes_ano(_supabase, user_id: str, ano: int) -> list[dict]:
+    try:
+        _epoch = int(st.session_state.get("ir_epoch", 0) or 0)
+    except Exception:
+        _epoch = 0
+    key = ("op_oper", str(user_id), int(ano), _epoch)
+    bucket = _CACHE.get("ops_ano")
+    if _internal_cache_enabled() and isinstance(bucket, dict) and key in bucket:
+        return bucket[key]
+    try:
+        inicio = f"{int(ano)}-01-01"
+        fim = f"{int(ano) + 1}-01-01"
+        # Busca operações finalizadas no ano OU, quando não houver encerramento, as que foram abertas no ano
+        t0 = time.perf_counter()
+        resp = (
+            _supabase.table("opcoes_operacoes")
+            .select("data_operacao,data_encerramento,ticker,quantidade,preco_inicial,preco_final,custo,tipo_operacao_inicial,irrf")
+            .eq("user_id", user_id)
+            .or_(
+                f"and(data_encerramento.gte.{inicio},data_encerramento.lt.{fim}),"
+                f"and(data_encerramento.is.null,data_operacao.gte.{inicio},data_operacao.lt.{fim})"
+            )
+            .execute()
+        )
+        t1 = time.perf_counter()
+        print(f"[PERF] _get_rows_opcoes_operacoes_ano: {(t1 - t0):.3f}s para executar query Supabase")
+        rows = getattr(resp, "data", []) or []
+    except Exception:
+        rows = []
+    if _internal_cache_enabled() and isinstance(bucket, dict):
+        bucket[key] = rows
+    return rows
+
+def _get_rows_opcoes_carteira_ano(_supabase, user_id: str, ano: int) -> list[dict]:
+    try:
+        _epoch = int(st.session_state.get("ir_epoch", 0) or 0)
+    except Exception:
+        _epoch = 0
+    key = ("op_cart", str(user_id), int(ano), _epoch)
+    bucket = _CACHE.get("ops_ano")
+    if _internal_cache_enabled() and isinstance(bucket, dict) and key in bucket:
+        return bucket[key]
+    try:
+        inicio = f"{int(ano)}-01-01"
+        fim = f"{int(ano) + 1}-01-01"
+        t0 = time.perf_counter()
+        resp = (
+            _supabase.table("opcoes_carteira")
+            .select("data_operacao,tipo_operacao_inicial,irrf_abertura_total,irrf_abertura_pendente")
+            .eq("user_id", user_id)
+            .gte("data_operacao", inicio)
+            .lt("data_operacao", fim)
+            .execute()
+        )
+        t1 = time.perf_counter()
+        print(f"[PERF] _get_rows_opcoes_carteira_ano: {(t1 - t0):.3f}s para executar query Supabase")
+        rows = getattr(resp, "data", []) or []
+    except Exception:
+        rows = []
+    if _internal_cache_enabled() and isinstance(bucket, dict):
+        bucket[key] = rows
+    return rows
+
+
+# -------------------------
 # Invalida o cache leve de parâmetros fiscais ("params") deste módulo.
 def invalidate_params_cache(ano: Optional[int] = None, mes: Optional[int] = None) -> int:
     """
@@ -305,22 +562,40 @@ def invalidate_params_cache(ano: Optional[int] = None, mes: Optional[int] = None
     """
     try:
         bucket = _CACHE.get("params")
-        if not isinstance(bucket, dict) or not bucket:
-            return 0
+        # Função também limpa o memo sempre-ligado (_PARAMS_MEMO)
+        def _clear_params_memo_all():
+            try:
+                _PARAMS_MEMO.clear()
+            except Exception:
+                pass
 
-        # Sem ano/mes: limpa tudo
+        def _clear_params_memo_for(comp_iso: str):
+            try:
+                to_del = [k for k in list(_PARAMS_MEMO.keys()) if isinstance(k, tuple) and len(k) == 2 and k[1] == comp_iso]
+                for k in to_del:
+                    _PARAMS_MEMO.pop(k, None)
+            except Exception:
+                pass
+
         if ano is None or mes is None:
-            n = len(bucket)
-            bucket.clear()
+            # Limpa TUDO
+            n = 0
+            if isinstance(bucket, dict) and bucket:
+                n = len(bucket)
+                bucket.clear()
+            _clear_params_memo_all()
             return n
 
-        # Com ano/mes: remove apenas a competência informada
+        # Remove apenas a competência informada
         comp_iso = _competencia_date(int(ano), int(mes)).isoformat()
-        to_remove = [ck for ck in list(bucket.keys())
-                     if isinstance(ck, tuple) and len(ck) == 2 and ck[1] == comp_iso]
-        for ck in to_remove:
-            bucket.pop(ck, None)
-        return len(to_remove)
+        removed = 0
+        if isinstance(bucket, dict) and bucket:
+            to_remove = [ck for ck in list(bucket.keys()) if isinstance(ck, tuple) and len(ck) == 2 and ck[1] == comp_iso]
+            for ck in to_remove:
+                bucket.pop(ck, None)
+            removed = len(to_remove)
+        _clear_params_memo_for(comp_iso)
+        return removed
     except Exception:
         return 0
 
@@ -362,7 +637,11 @@ def _month_bounds(ano: int, mes: int) -> tuple[str, str]:
     return inicio, fim
 
 def _parse_date_any(s):
-    """Retorna datetime.date a partir de date/datetime/string/int; aceita múltiplos formatos."""
+    """Retorna datetime.date a partir de quase qualquer string de data.
+    Suporta: objetos date/datetime, ISO com 'T' e timezone (Z/+00:00),
+    strings com milissegundos, e formatos BR (dd/mm/yyyy). Também extrai
+    a primeira ocorrência de YYYY-MM-DD dentro de strings mais longas.
+    """
     if s is None:
         return None
     # Se já for date/datetime, retorna normalizado para date
@@ -374,16 +653,21 @@ def _parse_date_any(s):
     s = str(s).strip()
     if not s:
         return None
-    # Formatos aceitos (amplos)
-    fmts = (
-        "%Y-%m-%d",  # ISO
-        "%d/%m/%Y",  # BR
-        "%d/%m/%y",  # BR 2 dígitos
-        "%Y/%m/%d",
-        "%d-%m-%Y",
-        "%d-%m-%y",
-    )
-    for fmt in fmts:
+    # 0) Extrai padrão YYYY-MM-DD se presente em string maior (ex.: '2024-12-09T00:00:00Z')
+    try:
+        m = re.search(r"(\d{4}-\d{2}-\d{2})", s)
+        if m:
+            return datetime.strptime(m.group(1), "%Y-%m-%d").date()
+    except Exception:
+        pass
+    # 1) ISO completo com hora/fuso (remove 'Z', milissegundos e offset textual)
+    try:
+        s_iso = s.replace("T", " ").replace("Z", "").split("+")[0].split(".")[0]
+        return datetime.fromisoformat(s_iso).date()
+    except Exception:
+        pass
+    # 2) Formatos comuns (ordem ampla)
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y"):
         try:
             return datetime.strptime(s, fmt).date()
         except Exception:
@@ -420,12 +704,17 @@ def get_param(
     comp_dt = _competencia_date(ano, mes)
     ck = (k_req.lower(), comp_dt.isoformat())
 
-    # 2) Cache leve
+    # 2) Memo sempre-ligado (rápido; TTL curto)
+    memoed = _params_memo_get(ck)
+    if memoed is not None:
+        return memoed
+
+    # 3) Cache leve
     cached = _cache_get("params", ck)
     if cached is not None:
         return cached
 
-    # 3) Tenta buscar no banco pela vigência
+    # 4) Tenta buscar no banco pela vigência
     try:
         q = (
             supabase.table("parametros_fiscais")
@@ -450,26 +739,38 @@ def get_param(
                 except Exception:
                     val = raw
             _cache_set("params", ck, val)
+            _params_memo_set(ck, val)
             return val
     except Exception:
         # silencioso: cai para fallback
         pass
 
-    # 4) Fallback: default ou constantes canônicas
+    # 5) Fallback: default ou constantes canônicas
     if default is not None:
         _cache_set("params", ck, default)
+        _params_memo_set(ck, default)
         return default
 
     if k_upper == "ALIQUOTA_NORMAL":
-        return ALIQUOTA_NORMAL
+        val = ALIQUOTA_NORMAL
+        _params_memo_set(ck, val)
+        return val
     if k_upper == "ALIQUOTA_DAYTRADE":
-        return ALIQUOTA_DAYTRADE
+        val = ALIQUOTA_DAYTRADE
+        _params_memo_set(ck, val)
+        return val
     if k_upper == "ALIQUOTA_FII":
-        return ALIQUOTA_FII
+        val = ALIQUOTA_FII
+        _params_memo_set(ck, val)
+        return val
     if k_upper == "LIMITE_ISENCAO_ACOES":
-        return LIMITE_ISENCAO_ACOES
+        val = LIMITE_ISENCAO_ACOES
+        _params_memo_set(ck, val)
+        return val
     if k_upper in {"LIMIAR_MINIMO_DARF", "MINIMO_DARF"}:
-        return MINIMO_DARF
+        val = MINIMO_DARF
+        _params_memo_set(ck, val)
+        return val
 
     return default
 
@@ -490,8 +791,9 @@ def normalize_val(v) -> float:
     except Exception:
         return 0.0
 
-@st.cache_data(ttl=600, show_spinner=False)
-def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int):
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
+def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None):
+    _ = __dep_epoch  # dependency for Streamlit cache invalidation
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("ops_mes", ck)
     if cached is not None:
@@ -508,21 +810,16 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int):
       - A coluna 'custo' é carregada no backend e incluída aqui, já subtraída de 'lucro_rs'.
       - A coluna 'operacao' foi removida conforme solicitado.
     """
+    _t0_total = _t_now()
     rows = []
 
     # --------------------------
-    # À VISTA (ativos_vendidos)
+    # À VISTA (ativos_vendidos) — usa cache anual
     # --------------------------
-    # Importante: como `data_venda` pode estar salva como TEXT em múltiplos formatos (ISO ou BR),
-    # não aplicamos filtro de data no banco. Buscamos do usuário e filtramos no cliente
-    # após normalizar a data.
-    av_resp = (
-        _supabase.table("ativos_vendidos")
-        .select("data_compra,data_venda,ticker,quantidade,preco_compra,preco_venda,custo_operacional")
-        .eq("user_id", user_id)
-        .execute()
-    )
-    av_rows: List[dict] = getattr(av_resp, "data", []) or []
+    _t0_vista = _t_now()
+    _count_vista_ini = 0
+    av_rows: List[dict] = _get_rows_vista_ano(_supabase, user_id, ano)
+    _count_vista_ini = len(rows)
     for r in av_rows:
         d = _parse_date_any(r.get("data_venda"))
         data_compra = _parse_date_any(r.get("data_compra"))
@@ -553,39 +850,21 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int):
             "lucro_pct": lucro_pct,
             "custo": custo,
         })
+    _qtd_vista = len(rows) - _count_vista_ini
+    _perf(f"carregar_operacoes_do_mes.vista_loop: {_t_now() - _t0_vista:.3f}s, ops_vista={_qtd_vista}")
 
     # --------------------------
-    # OPÇÕES (opcoes_operacoes): duas consultas para evitar OR complexa no cliente
-    # a) Finalizadas no mês (usa data_encerramento no range)
-    op_fin = (
-        _supabase.table("opcoes_operacoes")
-        .select("data_operacao,data_encerramento,ticker,quantidade,preco_inicial,preco_final,custo,tipo_operacao_inicial")
-        .eq("user_id", user_id)
-        .gte("data_encerramento", inicio_iso)
-        .lt("data_encerramento", fim_iso)
-        # .not_.is_("data_encerramento", None)  # garantir não-nulo quando disponível (PostgREST pode não suportar not_.is_)
-        .execute()
-    )
-    rows_fin = getattr(op_fin, "data", []) or []
-
-    # b) Sem encerramento: competência pelo data_operacao dentro do mês
-    op_ab = (
-        _supabase.table("opcoes_operacoes")
-        .select("data_operacao,data_encerramento,ticker,quantidade,preco_inicial,preco_final,custo,tipo_operacao_inicial")
-        .eq("user_id", user_id)
-        .is_("data_encerramento", None)
-        .gte("data_operacao", inicio_iso)
-        .lt("data_operacao", fim_iso)
-        .execute()
-    )
-    rows_ab = getattr(op_ab, "data", []) or []
-
-    op_rows: List[dict] = rows_fin + rows_ab
-    for r in op_rows:
+    # OPÇÕES (opcoes_operacoes) — usa cache anual
+    # Critério: competência = data_encerramento se houver; senão data_operacao
+    # --------------------------
+    _t0_op = _t_now()
+    _count_op_ini = len(rows)
+    op_rows_all: List[dict] = _get_rows_opcoes_operacoes_ano(_supabase, user_id, ano)
+    for r in op_rows_all:
         data_operacao = _to_date(r.get("data_operacao"))
         data_encerramento = _to_date(r.get("data_encerramento"))
         competencia = data_encerramento if data_encerramento else data_operacao
-        if not competencia:
+        if not competencia or competencia.year != int(ano) or competencia.month != int(mes):
             continue
 
         qtd = r.get("quantidade") or 0
@@ -620,17 +899,22 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int):
             "lucro_pct": lucro_pct,
             "custo": custo,
         })
+    _qtd_op = len(rows) - _count_op_ini
+    _perf(f"carregar_operacoes_do_mes.opcoes_loop: {_t_now() - _t0_op:.3f}s, ops_opcoes={_qtd_op}")
 
     df = pd.DataFrame(
         rows,
         columns=["data","mercado","ticker","tipo","quantidade","preco_inicial","preco_final","lucro_rs","lucro_pct","custo"]
     )
+    _perf(f"carregar_operacoes_do_mes.df_build: {_t_now() - _t0_total:.3f}s, total_ops={len(rows)}")
     _cache_set("ops_mes", ck, df)
+    _perf(f"carregar_operacoes_do_mes.TOTAL: {_t_now() - _t0_total:.3f}s")
     return df.copy()
 
 
 # [IRRF-IR-01A]
-def somar_irrf_vista_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
+def somar_irrf_vista_mes(_supabase, user_id: str, ano: int, mes: int) -> dict:
     """
     [IRRF-IR-01A]
     Soma o IRRF do mês para operações À VISTA (tabela `ativos_vendidos`),
@@ -647,14 +931,7 @@ def somar_irrf_vista_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
     total = {"NORMAL": 0.0, "DAYTRADE": 0.0}
     inicio_iso, fim_iso = _month_bounds(ano, mes)
     try:
-        # Não filtramos por data no banco porque `data_venda` pode estar TEXT em vários formatos.
-        resp = (
-            supabase.table("ativos_vendidos")
-            .select("data_compra,data_venda,irrf")
-            .eq("user_id", user_id)
-            .execute()
-        )
-        rows = getattr(resp, "data", []) or []
+        rows = _get_rows_vista_ano(_supabase, user_id, ano)
     except Exception:
         rows = []
 
@@ -680,8 +957,9 @@ def somar_irrf_vista_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
 
 
 # [IRRF-IR-01B]
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
 def somar_irrf_opcoes_finalizadas_mes(
-    supabase,
+    _supabase,
     user_id: str,
     ano: int,
     mes: int,
@@ -709,30 +987,7 @@ def somar_irrf_opcoes_finalizadas_mes(
     total = {"NORMAL": 0.0, "DAYTRADE": 0.0}
     inicio_iso, fim_iso = _month_bounds(ano, mes)
     try:
-        # Finalizadas no mês
-        fin_q = (
-            supabase.table("opcoes_operacoes")
-            .select("data_operacao,data_encerramento,irrf,tipo_operacao_inicial")
-            .eq("user_id", user_id)
-            .gte("data_encerramento", inicio_iso)
-            .lt("data_encerramento", fim_iso)
-            .execute()
-        )
-        rows_fin = getattr(fin_q, "data", []) or []
-
-        # Abertas sem encerramento e operadas no mês (competência = abertura)
-        ab_q = (
-            supabase.table("opcoes_operacoes")
-            .select("data_operacao,data_encerramento,irrf,tipo_operacao_inicial")
-            .eq("user_id", user_id)
-            .is_("data_encerramento", None)
-            .gte("data_operacao", inicio_iso)
-            .lt("data_operacao", fim_iso)
-            .execute()
-        )
-        rows_ab = getattr(ab_q, "data", []) or []
-
-        rows = rows_fin + rows_ab
+        rows = _get_rows_opcoes_operacoes_ano(_supabase, user_id, ano)
     except Exception:
         rows = []
 
@@ -742,7 +997,7 @@ def somar_irrf_opcoes_finalizadas_mes(
         data_op = _to_date(r.get("data_operacao"))
         data_fin = _to_date(r.get("data_encerramento"))
         competencia = data_fin if data_fin else data_op
-        if not competencia:
+        if not competencia or competencia.year != int(ano) or competencia.month != int(mes):
             continue
 
         lado_inicial = str(r.get("tipo_operacao_inicial") or "").strip().lower()
@@ -768,8 +1023,9 @@ def somar_irrf_opcoes_finalizadas_mes(
 
 
 # [IRRF-IR-01C]
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
 def somar_irrf_opcoes_abertura_mes(
-    supabase,
+    _supabase,
     user_id: str,
     ano: int,
     mes: int,
@@ -794,15 +1050,7 @@ def somar_irrf_opcoes_abertura_mes(
 
     inicio_iso, fim_iso = _month_bounds(ano, mes)
     try:
-        resp = (
-            supabase.table("opcoes_carteira")
-            .select("data_operacao,tipo_operacao_inicial,irrf_abertura_total,irrf_abertura_pendente")
-            .eq("user_id", user_id)
-            .gte("data_operacao", inicio_iso)
-            .lt("data_operacao", fim_iso)
-            .execute()
-        )
-        rows = getattr(resp, "data", []) or []
+        rows = _get_rows_opcoes_carteira_ano(_supabase, user_id, ano)
     except Exception:
         rows = []
 
@@ -832,8 +1080,9 @@ def somar_irrf_opcoes_abertura_mes(
 
 
 # [IRRF-IR-01D]
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
 def agregar_irrf_mes_por_regime(
-    supabase,
+    _supabase,
     user_id: str,
     ano: int,
     mes: int,
@@ -857,13 +1106,13 @@ def agregar_irrf_mes_por_regime(
     """
     modo_norm = (modo or "abertura_total").strip().lower()
 
-    vista = somar_irrf_vista_mes(supabase, user_id, ano, mes)
+    vista = somar_irrf_vista_mes(_supabase, user_id, ano, mes)
     if modo_norm == "alocado":
-        ops_fin = somar_irrf_opcoes_finalizadas_mes(supabase, user_id, ano, mes, modo="alocado")
+        ops_fin = somar_irrf_opcoes_finalizadas_mes(_supabase, user_id, ano, mes, modo="alocado")
         ops_ab = {"NORMAL": 0.0, "DAYTRADE": 0.0}
     else:
-        ops_fin = somar_irrf_opcoes_finalizadas_mes(supabase, user_id, ano, mes, modo="abertura_total")
-        ops_ab = somar_irrf_opcoes_abertura_mes(supabase, user_id, ano, mes, modo="abertura_total")
+        ops_fin = somar_irrf_opcoes_finalizadas_mes(_supabase, user_id, ano, mes, modo="abertura_total")
+        ops_ab = somar_irrf_opcoes_abertura_mes(_supabase, user_id, ano, mes, modo="abertura_total")
 
     normal = float(vista.get("NORMAL", 0.0)) + float(ops_fin.get("NORMAL", 0.0)) + float(ops_ab.get("NORMAL", 0.0))
     dt = float(vista.get("DAYTRADE", 0.0)) + float(ops_fin.get("DAYTRADE", 0.0)) + float(ops_ab.get("DAYTRADE", 0.0))
@@ -902,13 +1151,14 @@ def classificar_ativo(ticker: Optional[str], meta: Optional[dict] = None) -> str
 
     # Normaliza: remove sufixos de mercado (ex.: .SA, .B3, .BMFBOVESPA)
     core = re.sub(r"\.[A-Z0-9]+$", "", t)
-
+    # Exceção: units '11' que **não** são FIIs
+    if core in NON_FII_UNITS_11:
+        return "acoes"
     # 2) Heurística pelo núcleo do ticker
     if re.search(r"11$", core):
-      return "bdrefffii"  # FIIs/ETFs
+        return "bdrefffii"  # FIIs/ETFs
     if re.search(r"(31|32|33|34|35|36|39)$", core):
-      return "bdrefffii"  # BDRs
-
+        return "bdrefffii"  # BDRs
     return "acoes"
 
 
@@ -951,6 +1201,9 @@ def classificar_ativo_detalhado(ticker: Optional[str], meta: Optional[dict] = No
 
     # FIIs/ETFs: geralmente terminam com '11'
     if re.search(r"11$", core):
+        # Exceção: units '11' que **não** são FIIs
+        if core in NON_FII_UNITS_11:
+            return "acoes"
         if is_etf_core(core):
             return "etf"
         return "fii"
@@ -959,12 +1212,14 @@ def classificar_ativo_detalhado(ticker: Optional[str], meta: Optional[dict] = No
     return "acoes"
 
 
-@st.cache_data(ttl=600, show_spinner=False)
-def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int) -> dict:
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
+def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
+    _ = __dep_epoch  # dependency for Streamlit cache invalidation
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("resumo_mes", ck)
     if cached is not None:
         return dict(cached)
+    _t0 = _t_now()
     """
     Consolida lucros líquidos do mês por categoria (Ações, BDR/ETF, FII, Opções)
     e por tipo (Comum / Day Trade). Também devolve total de VENDAS em ações
@@ -980,7 +1235,11 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int) -> 
       - O lucro retornado já é LÍQUIDO (custo descontado), pois vem de carregar_operacoes_do_mes.
       - `bdrefffii` mantém compatibilidade com o legado e agora contempla apenas BDR+ETF (FIIs ficam em `fiis`).
     """
-    df = carregar_operacoes_do_mes(_supabase, user_id, ano, mes)
+    try:
+        _epoch = int(st.session_state.get("ir_epoch", 0) if __dep_epoch is None else __dep_epoch)
+    except Exception:
+        _epoch = 0
+    df = carregar_operacoes_do_mes(_supabase, user_id, ano, mes, __dep_epoch=_epoch)
 
     # Inicializa acumuladores
     res = {
@@ -990,6 +1249,7 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int) -> 
 
     if df.empty:
         _cache_set("resumo_mes", ck, res)
+        _perf(f"obter_resumo_categorias_mes.TOTAL: {_t_now() - _t0:.3f}s")
         return res
 
     # 1) Agregar lucros por categoria e tipo
@@ -1029,6 +1289,7 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int) -> 
 
     res["comum"]["vendas_acoes_total"] = vendas_total
     _cache_set("resumo_mes", ck, res)
+    _perf(f"obter_resumo_categorias_mes.TOTAL: {_t_now() - _t0:.3f}s")
     return res
 
 
@@ -1036,12 +1297,14 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int) -> 
 get_resumo_ir_mes = obter_resumo_categorias_mes
 
 
-@st.cache_data(ttl=600, show_spinner=False)
-def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int) -> dict:
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
+def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
+    _ = __dep_epoch  # dependency for Streamlit cache invalidation
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("isencao_mes", ck)
     if cached is not None:
         return dict(cached)
+    _t0 = _t_now()
     """
     Apura a regra de isenção de 20k para AÇÕES à vista (apenas operações COMUM/swing).
     Usa o resumo de categorias do mês para obter:
@@ -1060,7 +1323,11 @@ def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int) -> dict:
         "lucro_tributavel_acoes": float,
       }
     """
-    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes)
+    try:
+        _epoch = int(st.session_state.get("ir_epoch", 0) if __dep_epoch is None else __dep_epoch)
+    except Exception:
+        _epoch = 0
+    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes, __dep_epoch=_epoch)
     vendas = float(resumo.get("comum", {}).get("vendas_acoes_total", 0.0) or 0.0)
     lucro_acoes = float(resumo.get("comum", {}).get("acoes", 0.0) or 0.0)
 
@@ -1077,6 +1344,7 @@ def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int) -> dict:
         "lucro_tributavel_acoes": lucro_tributavel,
     }
     _cache_set("isencao_mes", ck, out)
+    _perf(f"apurar_isencao_20k_mes.TOTAL: {_t_now() - _t0:.3f}s")
     return out
 
 
@@ -1276,11 +1544,13 @@ def mapear_grupo_e_aliquota(row) -> tuple[str, float]:
 # =========================
 # Apuração Base Tributável e IR por Regime no mês
 # =========================
-def apurar_base_regime_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
+@st.cache_data(ttl=600, persist=True)
+def apurar_base_regime_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("base_regime_mes", ck)
     if cached is not None:
         return dict(cached)
+    _t0 = _t_now()
     """
     Consolida a base tributável e IR devido por regime no mês:
       - NORMAL  (15%): Ações (após isenção 20k) + BDR/ETF + Opções
@@ -1297,13 +1567,28 @@ def apurar_base_regime_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         "FII":      {"base_tributavel": float, "ir_devido": float},
       }
     """
-    resumo = obter_resumo_categorias_mes(supabase, user_id, ano, mes)
-    isencao = apurar_isencao_20k_mes(supabase, user_id, ano, mes)
+    # --- Memoização por execução (evita recomputos no mesmo rerun) ---
+    try:
+        _epoch = __dep_epoch if __dep_epoch is not None else (st.session_state.get("ir_epoch", 0) if hasattr(st, "session_state") else 0)
+    except Exception:
+        _epoch = 0
+    _memo_tag = f"base_regime_mes:{user_id}:{int(ano)}:{int(mes)}:{_epoch}"
+    _memo_hit = _get_last_result(_memo_tag)
+    if _memo_hit is not None:
+        return dict(_memo_hit)
+    # Dependência de cache por epoch (invalidação barata via bump_ir_epoch)
+    if __dep_epoch is None:
+        try:
+            __dep_epoch = st.session_state.get("ir_epoch", 0)
+        except Exception:
+            __dep_epoch = 0
+    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes, __dep_epoch=__dep_epoch)
+    isencao = apurar_isencao_20k_mes(_supabase, user_id, ano, mes, __dep_epoch=__dep_epoch)
 
     # Parâmetros de alíquotas
-    aliquota_normal = get_param(supabase, "ALIQUOTA_NORMAL", ano, mes, default=ALIQUOTA_NORMAL)
-    aliquota_daytrade = get_param(supabase, "ALIQUOTA_DAYTRADE", ano, mes, default=ALIQUOTA_DAYTRADE)
-    aliquota_fii = get_param(supabase, "ALIQUOTA_FII", ano, mes, default=ALIQUOTA_FII)
+    aliquota_normal = get_param(_supabase, "ALIQUOTA_NORMAL", ano, mes, default=ALIQUOTA_NORMAL)
+    aliquota_daytrade = get_param(_supabase, "ALIQUOTA_DAYTRADE", ano, mes, default=ALIQUOTA_DAYTRADE)
+    aliquota_fii = get_param(_supabase, "ALIQUOTA_FII", ano, mes, default=ALIQUOTA_FII)
 
     # Base NORMAL: lucro tributável de ações (após isenção) + BDR/ETF + opções
     lucro_trib_acoes = float(isencao.get("lucro_tributavel_acoes", 0.0) or 0.0)
@@ -1331,46 +1616,49 @@ def apurar_base_regime_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         "FII":      {"base_tributavel": base_fii, "ir_devido": ir_fii},
     }
     _cache_set("base_regime_mes", ck, out)
+    _set_last_result(_memo_tag, out)
+    _perf(f"apurar_base_regime_mes.TOTAL: {_t_now() - _t0:.3f}s")
     return out
 
 
 # =========================
 # Helpers para compensação de prejuízo (carry-in, apuração mensal)
 # =========================
-def _buscar_carry_in(supabase, user_id: str, tipo: str, ano: int, mes: int) -> float:
-    """
-    Busca o prejuízo acumulado (carry-in) mais recente EM MÊS ANTERIOR ao (ano,mes) informado
-    na tabela `compensacoes_ir`, considerando apenas registros `is_active = true`.
-    `tipo` deve ser "comum", "daytrade" ou "fii" (minúsculo).
-    Retorna 0.0 caso não haja registros válidos.
-    """
+
+# Bulk carry-in fetcher for multiple types
+def _buscar_carry_bulk(_supabase, user_id: str, ano: int, mes: int) -> dict:
     try:
         resp = (
-            supabase.table("compensacoes_ir")
+            _supabase.table("compensacoes_ir")
             .select("ano,mes,prejuizo_restante_fim,is_active,tipo")
             .eq("user_id", user_id)
-            .eq("tipo", tipo)
             .eq("is_active", True)
+            .in_("tipo", ["comum", "daytrade", "fii"])
             .order("ano", desc=True)
             .order("mes", desc=True)
             .execute()
         )
         rows = getattr(resp, "data", []) or []
-        for r in rows:
-            a = int(r.get("ano") or 0)
-            m = int(r.get("mes") or 0)
-            if (a < ano) or (a == ano and m < mes):
-                return float(r.get("prejuizo_restante_fim") or 0.0)
+        res = {"comum": 0.0, "daytrade": 0.0, "fii": 0.0}
+        for tipo in res.keys():
+            for r in rows:
+                a = int(r.get("ano") or 0)
+                m = int(r.get("mes") or 0)
+                if r.get("tipo") == tipo and ((a < ano) or (a == ano and m < mes)):
+                    res[tipo] = float(r.get("prejuizo_restante_fim") or 0.0)
+                    break
+        return res
     except Exception:
-        pass
-    return 0.0
+        return {"comum": 0.0, "daytrade": 0.0, "fii": 0.0}
 
 
-def apurar_compensacao_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
+@st.cache_data(ttl=600, show_spinner=False, persist=True)
+def apurar_compensacao_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("comp_mes", ck)
     if cached is not None:
         return dict(cached)
+    _t0 = _t_now()
     """
     Calcula compensação de prejuízo por regime no mês, sem persistir.
     Usa as bases de `apurar_base_regime_mes` e o carry-in vindo de `compensacoes_ir`.
@@ -1394,15 +1682,36 @@ def apurar_compensacao_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
       }
     }
     """
-    bases = apurar_base_regime_mes(supabase, user_id, ano, mes)
-    # Map tipo para a tabela: NORMAL->"comum", DAYTRADE->"daytrade", FII->"fii"
-    carry_normal = _buscar_carry_in(supabase, user_id, "comum", ano, mes)
-    carry_dt = _buscar_carry_in(supabase, user_id, "daytrade", ano, mes)
+    # --- Memoização por execução (evita recomputos no mesmo rerun) ---
+    try:
+        _epoch = __dep_epoch if __dep_epoch is not None else (st.session_state.get("ir_epoch", 0) if hasattr(st, "session_state") else 0)
+    except Exception:
+        _epoch = 0
+    _memo_tag = f"comp_mes:{user_id}:{int(ano)}:{int(mes)}:{_epoch}"
+    _memo_hit = _get_last_result(_memo_tag)
+    if _memo_hit is not None:
+        return dict(_memo_hit)
+    # Dependência de cache por epoch (invalidação barata via bump_ir_epoch)
+    if __dep_epoch is None:
+        try:
+            __dep_epoch = st.session_state.get("ir_epoch", 0)
+        except Exception:
+            __dep_epoch = 0
+    bases = apurar_base_regime_mes(_supabase, user_id, ano, mes, __dep_epoch=__dep_epoch)
+    # Busca carry-ins em bulk
+    carrys = _buscar_carry_bulk(_supabase, user_id, ano, mes)
+    carry_normal = carrys["comum"]
+    carry_dt = carrys["daytrade"]
+    carry_fii = carrys["fii"]
 
     base_normal = float((bases.get("NORMAL") or {}).get("base_tributavel", 0.0) or 0.0)
     base_dt = float((bases.get("DAYTRADE") or {}).get("base_tributavel", 0.0) or 0.0)
-    carry_fii = _buscar_carry_in(supabase, user_id, "fii", ano, mes)
     base_fii = float((bases.get("FII") or {}).get("base_tributavel", 0.0) or 0.0)
+
+    # Pré-carregar alíquotas para o mês (evita chamadas repetidas a get_param)
+    aliquota_normal = get_param(_supabase, "ALIQUOTA_NORMAL", ano, mes, default=ALIQUOTA_NORMAL)
+    aliquota_daytrade = get_param(_supabase, "ALIQUOTA_DAYTRADE", ano, mes, default=ALIQUOTA_DAYTRADE)
+    aliquota_fii = get_param(_supabase, "ALIQUOTA_FII", ano, mes, default=ALIQUOTA_FII)
 
     # --- NORMAL ---
     if base_normal <= 0:
@@ -1414,7 +1723,6 @@ def apurar_compensacao_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         comp_n = min(base_normal, carry_normal)
         base_pos_n = base_normal - comp_n
         prejuizo_restante_n = carry_normal - comp_n
-        aliquota_normal = get_param(supabase, "ALIQUOTA_NORMAL", ano, mes, default=ALIQUOTA_NORMAL)
         ir_n = base_pos_n * float(aliquota_normal) if base_pos_n > 0 else 0.0
 
     # --- DAYTRADE ---
@@ -1427,7 +1735,6 @@ def apurar_compensacao_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         comp_dt = min(base_dt, carry_dt)
         base_pos_dt = base_dt - comp_dt
         prejuizo_restante_dt = carry_dt - comp_dt
-        aliquota_daytrade = get_param(supabase, "ALIQUOTA_DAYTRADE", ano, mes, default=ALIQUOTA_DAYTRADE)
         ir_dt = base_pos_dt * float(aliquota_daytrade) if base_pos_dt > 0 else 0.0
 
     # --- FII (20%) ---
@@ -1440,7 +1747,6 @@ def apurar_compensacao_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         comp_fii = min(base_fii, carry_fii)
         base_pos_fii = base_fii - comp_fii
         prejuizo_restante_fii = carry_fii - comp_fii
-        aliquota_fii = get_param(supabase, "ALIQUOTA_FII", ano, mes, default=ALIQUOTA_FII)
         ir_fii = base_pos_fii * float(aliquota_fii) if base_pos_fii > 0 else 0.0
 
     out = {
@@ -1467,6 +1773,8 @@ def apurar_compensacao_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         },
     }
     _cache_set("comp_mes", ck, out)
+    _set_last_result(_memo_tag, out)
+    _perf(f"apurar_compensacao_mes.TOTAL: {_t_now() - _t0:.3f}s")
     return out
 
 
@@ -1556,10 +1864,19 @@ def inserir_pagamento_darf(supabase, user_id: str, ano: int, mes: int, tipo: str
     _cache_invalidate("sum_darf", (user_id, ano, mes, tipo_norm))
     _cache_invalidate("listar_darf", (user_id, ano, mes, tipo_norm))
     _cache_invalidate("diag_mes", _ck_user_month_tipo(user_id, ano, mes, tipo_norm))
+    # Invalida cache persistente do Streamlit
+    try:
+        import streamlit as _st
+        if hasattr(_st, "cache_data") and callable(getattr(_st.cache_data, "clear", None)):
+            _st.cache_data.clear()
+        # Bump epoch para invalidar caches que dependem de __dep_epoch
+        bump_ir_epoch()
+    except Exception:
+        pass
     return getattr(resp, "data", None)
 
 
-def listar_pagamentos_darf(supabase, user_id: str, ano: int, mes: int, tipo: str):
+def listar_pagamentos_darf(supabase, user_id: str, ano: int, mes: int, tipo: str, __dep_epoch: Optional[int] = None):
     # normaliza tipo para evitar inconsistências
     tipo_norm = (str(tipo) or "").strip().lower()
     ck = (user_id, int(ano), int(mes), tipo_norm)
@@ -1634,6 +1951,16 @@ def atualizar_pagamento_darf(supabase, pagamento_id: Any, dados_atualizados: dic
     except Exception:
         pass
 
+    # Invalida cache persistente do Streamlit
+    try:
+        import streamlit as _st
+        if hasattr(_st, "cache_data") and callable(getattr(_st.cache_data, "clear", None)):
+            _st.cache_data.clear()
+        # Bump epoch para invalidar caches que dependem de __dep_epoch
+        bump_ir_epoch()
+    except Exception:
+        pass
+
     return getattr(resp, "data", None)
 
 
@@ -1679,13 +2006,23 @@ def excluir_pagamento_darf(supabase, pagamento_id: Any):
     except Exception:
         pass
 
+    # Invalida cache persistente do Streamlit
+    try:
+        import streamlit as _st
+        if hasattr(_st, "cache_data") and callable(getattr(_st.cache_data, "clear", None)):
+            _st.cache_data.clear()
+        # Bump epoch para invalidar caches que dependem de __dep_epoch
+        bump_ir_epoch()
+    except Exception:
+        pass
+
     return getattr(resp, "data", None)
 
 
 # =========================
 # Sumário e Consolidação de DARF e Compensações
 # =========================
-def sum_pagamentos_darf(supabase, user_id: str, ano: int, mes: int, tipo: str) -> float:
+def sum_pagamentos_darf(supabase, user_id: str, ano: int, mes: int, tipo: str, __dep_epoch: Optional[int] = None) -> float:
     ck = (user_id, int(ano), int(mes), str(tipo))
     cached = _cache_get("sum_darf", ck)
     if cached is not None:
@@ -1777,49 +2114,83 @@ def _houve_rollover_dezembro(supabase, user_id: str, ano: int, mes: int, tipo: s
 
 
 def calcular_carry_ir_sub10(supabase, user_id: str, ano: int, mes: int, tipo: str, max_back_months: int = 36) -> float:
+    _t0 = _t_now()
+    _iters = 0
     """
     Soma, para trás, os meses consecutivos em que:
-      - há snapshot ativo,
-      - `ir_devido_tipo` está entre (0, 10),
+      - o IR devido pós-compensação do regime (por competência) MENOS o IRRF do próprio mês
+        resulta em valor líquido em (0, mínimo_DARF),
       - e NÃO houve pagamento DARF no mês,
-    parando quando encontrar um mês com pagamento (>0), com `ir_devido_tipo >= 10`,
-    `ir_devido_tipo <= 0`, ou quando acabar a janela de busca.
+    parando quando encontrar um mês com pagamento (>0), com total líquido >= mínimo,
+    total líquido <= 0, ou quando acabar a janela de busca.
 
     Observação:
-      - Não altera schema. Usa pagamentos reais (pagamentos_darf) para
-        interromper a cadeia após um mês em que houve recolhimento.
+      - Calcula o valor **líquido de IRRF** do próprio mês, evitando carregar valores brutos.
+      - Não altera schema. Usa pagamentos reais (pagamentos_darf) para interromper a cadeia.
     """
+    # --- memoização leve por execução da página (evita recomputos custosos) ---
+    global _CARRY_MEMO
+    try:
+        _key = (str(user_id), int(ano), int(mes), (str(tipo) or "").strip().lower())
+        if _key in _CARRY_MEMO:
+            return _CARRY_MEMO[_key]
+    except Exception:
+        _key = None
+
     total = 0.0
     a, m = _mes_anterior(ano, mes)
+
+    # normaliza tipo para grupos da apuração
+    tipo_norm = (str(tipo) or "").strip().lower()
+    if tipo_norm not in {"comum", "daytrade", "fii"}:
+        return 0.0
+    grupo = "NORMAL" if tipo_norm == "comum" else ("DAYTRADE" if tipo_norm == "daytrade" else "FII")
+
     for _ in range(max_back_months):
-        snap = _snapshot_ativo_tipo(supabase, user_id, a, m, tipo)
-        if not snap:
-            break
-        ir_devido = float(snap.get("ir_devido_tipo") or 0.0)
-        if ir_devido <= 0:
-            break
-        if ir_devido >= 10.0:
-            # mês que deveria recolher sozinho; encerra cadeia
-            break
-        pagos = sum_pagamentos_darf(supabase, user_id, a, m, tipo)
+        _iters += 1
+        # 1) Pagamentos do mês (se houve, encerra cadeia)
+        pagos = sum_pagamentos_darf(supabase, user_id, a, m, tipo_norm)
         if pagos and pagos > 0:
-            # houve pagamento; encerra a cadeia
             break
-        total += ir_devido
+        # 2) IR devido pós-compensação do mês
+        comp_prev = apurar_compensacao_mes(supabase, user_id, a, m) or {}
+        ir_dev_prev = float((comp_prev.get(grupo) or {}).get("ir_devido", 0.0) or 0.0)
+        # 3) IRRF do mês, por regime (FII = 0)
+        irrf_prev = 0.0
+        if grupo in {"NORMAL", "DAYTRADE"}:
+            try:
+                regs_prev = agregar_irrf_mes_por_regime(supabase, user_id, a, m, modo="abertura_total") or {}
+                if grupo == "NORMAL":
+                    irrf_prev = float(regs_prev.get("NORMAL", 0.0) or 0.0)
+                else:
+                    irrf_prev = float(regs_prev.get("DAYTRADE", 0.0) or 0.0)
+            except Exception:
+                irrf_prev = 0.0
+        # 4) Valor líquido do mês (pós-IRRF do próprio mês)
+        liquido_prev = max(ir_dev_prev - irrf_prev, 0.0)
+        # 5) Mínimo DARF vigente na competência anterior
+        minimo_prev = float(get_param(supabase, "LIMIAR_MINIMO_DARF", a, m, default=MINIMO_DARF) or MINIMO_DARF)
+        # 6) Regras de parada / acumulação
+        if liquido_prev <= 0.0:
+            # Não interrompe a cadeia; segue buscando meses anteriores.
+            a, m = _mes_anterior(a, m)
+            continue
+        if liquido_prev >= minimo_prev:
+            # Encontrou um mês que, sozinho, já atingiria o mínimo — para a cadeia.
+            break
+        total += liquido_prev
         a, m = _mes_anterior(a, m)
-    return total
+
+    total_rounded = round(total, 2)
+    try:
+        if _key is not None:
+            _CARRY_MEMO[_key] = total_rounded
+    except Exception:
+        pass
+    _perf(f"calcular_carry_ir_sub10[{tipo}].iters={_iters} TOTAL: {_t_now() - _t0:.3f}s, total={total_rounded:.2f}")
+    return total_rounded
 
 def consolidar_competencia_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
-    ck_um = _ck_user_month(user_id, ano, mes)
-    _cache_invalidate("snapshot_mes", ck_um)
-    _cache_invalidate("base_regime_mes", ck_um)
-    _cache_invalidate("comp_mes", ck_um)
-    _cache_invalidate("resumo_mes", ck_um)
-    _cache_invalidate("isencao_mes", ck_um)
-    _cache_invalidate("ops_mes", ck_um)
-    _cache_invalidate("diag_mes", _ck_user_month_tipo(user_id, ano, mes, "comum"))
-    _cache_invalidate("diag_mes", _ck_user_month_tipo(user_id, ano, mes, "daytrade"))
-    _cache_invalidate("diag_mes", _ck_user_month_tipo(user_id, ano, mes, "fii"))
     """
     Gera e persiste snapshot da competência do mês na tabela `compensacoes_ir` para
     os tipos 'comum', 'daytrade' e 'fii', aplicando superseding (desativa versões anteriores).
@@ -1939,6 +2310,19 @@ def consolidar_competencia_mes(supabase, user_id: str, ano: int, mes: int) -> di
         except Exception as e:
             resultados[tipo] = {"error": str(e)}
 
+    # --- Pós-consolidação: garantir que a UI reflita imediatamente o fechamento ---
+    # Limpamos caches do Streamlit e "bumpamos" o epoch para invalidar dependências.
+    try:
+        if hasattr(st, "cache_data") and callable(getattr(st, "cache_data", None)):
+            st.cache_data.clear()
+    except Exception:
+        pass
+    try:
+        # Atualiza epoch de IR (invalidação barata usada pelos caches dependentes)
+        bump_ir_epoch()
+    except Exception:
+        pass
+
     return resultados
 
 
@@ -1969,6 +2353,7 @@ def _coletar_parametros_aplicados(supabase, ano: int, mes: int) -> dict:
 
 
 def montar_auditoria_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
+    _t0 = _t_now()
     """
     Monta um JSON detalhando o cálculo do mês para auditoria/explicabilidade.
     Inclui: resumo, isenção, bases, compensações, IRRF por regime, pagamentos,
@@ -2031,6 +2416,7 @@ def montar_auditoria_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
         for k in ("comum", "daytrade", "fii")
     }
 
+    _perf(f"montar_auditoria_mes.TOTAL: {_t_now() - _t0:.3f}s")
     return {
         "params": params,
         "resumo": resumo,
@@ -2142,12 +2528,13 @@ def diagnostico_darf_mes(supabase, user_id: str, ano: int, mes: int, tipo: str) 
       - ir_devido_mes (float): IR devido do mês pós-compensação (card).
       - irrf_mes (float): IRRF do mês aplicável ao tipo (FII = 0).
       - carry_sub10 (float): soma de IR < 10 de meses anteriores (sem pagamentos).
-      - total_considerado (float): max(ir_devido_mes - irrf_mes, 0) + carry_sub10.
+      - total_considerado (float): max(ir_devido_mes - irrf_mes + carry_sub10, 0).
       - pagos_mes (float): soma dos DARFs do mês para o tipo.
       - minimo_darf (float): limiar vigente para emissão de DARF.
       - sugerido (float): valor sugerido a recolher considerando a regra do mínimo.
       - status (str): "Abaixo do mínimo" | "Devido" | "Quitado/sem débito".
     """
+    
     # Normaliza tipo para as chaves de tabela
     tipo_norm = (str(tipo) or "").strip().lower()
     if tipo_norm not in {"comum", "daytrade", "fii"}:
@@ -2186,8 +2573,8 @@ def diagnostico_darf_mes(supabase, user_id: str, ano: int, mes: int, tipo: str) 
     # 3) Carry de meses com IR < 10 sem pagamento
     carry = calcular_carry_ir_sub10(supabase, user_id, ano, mes, tipo_norm)
 
-    # 4) Total considerado para regra do mínimo
-    total_considerado = max(ir_devido_mes - irrf_mes, 0.0) + float(carry)
+    # O carry_sub10 já representa valor líquido de IRRF; não deve ser tratado como bruto.
+    total_considerado = max(ir_devido_mes - irrf_mes + float(carry), 0.0)
 
     # 5) Pagamentos no mês para o tipo
     pagos_mes = sum_pagamentos_darf(supabase, user_id, ano, mes, tipo_norm)

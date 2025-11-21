@@ -59,7 +59,6 @@ if st.query_params.get("logout") == "true":
     st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
     st.stop()
 
-from utils import calcular_desempenho_consolidado
 from utils import importar_nota_xp_pdf
 from utils import obter_total_dividendos_para_lote
 from utils import carregar_dividendos_usuario, inserir_dividendo
@@ -385,87 +384,6 @@ if adicionar:
 
 
 #
-# Novo cálculo direto do desempenho usando função utilitária consolidada
-# Após o cálculo, consolidar tickers únicos
-desempenho = calcular_desempenho_consolidado(st.session_state.posicao_atual)
-# Consolidar tickers únicos (mantendo a ordem do primeiro aparecimento)
-desempenho = list(dict((ativo["ticker"].upper(), ativo) for ativo in desempenho).values())
-# Ordenar pelo campo variacao_percentual do maior para o menor
-desempenho.sort(key=lambda x: x["variacao_percentual"], reverse=True)
-
-st.markdown("""
-<style>
-.balao {
-    display: inline-block;
-    padding: 10px 15px;
-    margin: 5px;
-    border-radius: 12px;
-    background-color: #262730;  /* mesma cor escura da barra lateral */
-    font-family: sans-serif;
-    text-align: center;
-    min-width: 120px;
-}
-.balao .ticker {
-    font-weight: bold;
-    font-size: 16px;
-    color: white;
-}
-.balao .percentual, .balao .reais {
-    font-size: 14px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-
-# Cálculo do total geral da coluna "Total"
-
-# --- NOVO BLOCO DOS BALÕES COM TOOLTIP DE PARTICIPAÇÃO ---
-html_baloes = ""
-tickers_exibidos = set()
-soma_total_por_ticker = {}
-
-# Primeiro, calcula o total de cada ticker usando o custo unificado (inclui dividendos + opções + custo operacional)
-for item in st.session_state.posicao_atual:
-    ticker = item["Ticker"].upper()
-    quantidade = int(item.get("Quantidade") or 0)
-    if quantidade <= 0:
-        continue
-    custo_unit, _ = _custo_final_unit_para_item(item, _allocacoes_por_ticker, supabase)
-    total = custo_unit * quantidade
-    soma_total_por_ticker[ticker] = soma_total_por_ticker.get(ticker, 0.0) + total
-
-# Em seguida, monta os balões
-total_geral = sum(soma_total_por_ticker.values())
-for ativo in desempenho:
-    ticker = ativo["ticker"].upper()
-    if ticker in tickers_exibidos:
-        continue
-    tickers_exibidos.add(ticker)
-    cor = "#00cc00" if ativo["variacao_reais"] > 0 else "#ff3333"
-    variacao_r = f'R$ {ativo["variacao_reais"]:,.2f}'.replace(",", "X").replace(".", ",").replace("X", ".")
-    variacao_p = f'{ativo["variacao_percentual"]:+.2f}%'.replace(".", ",")
-    valor_total = soma_total_por_ticker.get(ticker, 0)
-    valor_total_formatado = f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    participacao = (valor_total / total_geral * 100) if total_geral > 0 else 0
-    participacao_formatada = f"{participacao:.2f}%".replace(".", ",")
-    tooltip = f"Participação na carteira: {valor_total_formatado} • {participacao_formatada}"
-
-    html_baloes += (
-        f"<div class='balao' title='{tooltip}'>"
-        f"<div class='ticker'>{ticker}</div>"
-        f"<div class='percentual' style='color:{cor};'>{variacao_p}</div>"
-        f"<div class='reais' style='color:{cor};'>{variacao_r}</div>"
-        f"</div>"
-    )
-
-st.markdown(f"""
-    <div style='display:flex; flex-wrap:wrap; margin-bottom: 30px;'>
-        {html_baloes}
-    </div>
-""", unsafe_allow_html=True)
-
-
 # Exibe a tabela da carteira como linhas clicáveis
 st.subheader("Carteira Atual")
 
@@ -518,7 +436,7 @@ header_cols = st.columns([1.5, 1, 1.6, 1.2, 1.6, 2, 1.8, 1.5, 2.2, 1])
 header_cols[0].markdown("<div class='tabela-header'>Compra</div>", unsafe_allow_html=True)
 header_cols[1].markdown("<div class='tabela-header'>Logo</div>", unsafe_allow_html=True)
 header_cols[2].markdown("<div class='tabela-header'>Ticker</div>", unsafe_allow_html=True)
-header_cols[3].markdown("<div class='tabela-header'>Quant.</div>", unsafe_allow_html=True)
+header_cols[3].markdown("<div class='tabela-header'>Quant</div>", unsafe_allow_html=True)
 header_cols[4].markdown("<div class='tabela-header'>Custo</div>", unsafe_allow_html=True)
 header_cols[5].markdown("<div class='tabela-header'>Total</div>", unsafe_allow_html=True)
 header_cols[6].markdown("<div class='tabela-header'>Preço</div>", unsafe_allow_html=True)
@@ -850,4 +768,3 @@ row_total[8].markdown(
     f"<div class='tabela-linha' style='color:{cor_total};'><strong>{total_variacao_reais_formatado}</strong></div>",
     unsafe_allow_html=True
 )
-

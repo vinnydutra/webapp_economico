@@ -99,3 +99,20 @@ webapp_economico/
   1. Acesse https://streamlit.io/cloud
   2. Clique no seu app
   3. Menu inferior direito (⋯) > “Rerun” ou “Restart”
+
+
+GitHub
+
+1. git status
+2. git add .
+3. git commit -m "Sincroniza alterações locais - limpeza e atualização geral"
+👉 Isso registra as alterações no repositório local.
+(Você pode ajustar a mensagem, claro.)
+
+4. git push
+5. git pull --rebase
+👉 Isso traz as mudanças do GitHub sem criar commits de merge desnecessários.
+
+git config --global push.autoSetupRemote true
+
+streamlit cache clear
