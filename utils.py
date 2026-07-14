@@ -1,3 +1,162 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+import uuid
+from functools import lru_cache
+try:
+    import requests
+except ImportError:  # fallback para import em ambientes sem dependências instaladas
+    requests = None
+from datetime import datetime, date
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+try:
+    import fitz  # PyMuPDF
+except ImportError:  # fallback para import em ambientes sem dependências instaladas
+    fitz = None
+try:
+    import streamlit as st
+except ImportError:  # fallback para import em ambientes sem dependências instaladas
+    class _DummyStreamlit:
+        def cache_data(self, *args, **kwargs):  # decorator no-op
+            def _decorator(fn):
+                return fn
+            return _decorator
+
+        def cache_resource(self, *args, **kwargs):  # decorator no-op
+            def _decorator(fn):
+                return fn
+            return _decorator
+
+        def __getattr__(self, name):
+            # Métodos usados em redirecionamentos (markdown, stop, etc.) levantam erro claro.
+            def _missing(*_args, **_kwargs):
+                raise ImportError("streamlit não está instalado no ambiente atual.")
+            return _missing
+    st = _DummyStreamlit()
+try:
+    import yfinance as yf  # opcional; checado em runtime antes de uso
+except ImportError:
+    yf = None
+
+if load_dotenv is not None:
+    load_dotenv()
+
+def _obter_secret_streamlit(nome: str) -> str | None:
+    try:
+        valor = st.secrets.get(nome)
+    except Exception:
+        valor = None
+    if valor is None:
+        return None
+    valor = str(valor).strip()
+    return valor or None
+
+
+def _obter_config_supabase(nome_env: str, nome_secret: str) -> str | None:
+    valor = os.getenv(nome_env)
+    if valor:
+        return valor.strip()
+
+    valor = _obter_secret_streamlit(nome_secret)
+    if valor:
+        return valor
+
+    return None
+
+
+@lru_cache(maxsize=1)
+def obter_credenciais_supabase() -> tuple[str, str]:
+    supabase_url = _obter_config_supabase("SUPABASE_URL", "SUPABASE_URL")
+    if not supabase_url:
+        raise RuntimeError(
+            "Configuração ausente do Supabase: defina SUPABASE_URL no ambiente "
+            "ou SUPABASE_URL em st.secrets."
+        )
+
+    supabase_key = _obter_config_supabase("SUPABASE_KEY", "SUPABASE_KEY")
+    if not supabase_key:
+        raise RuntimeError(
+            "Configuração ausente do Supabase: defina SUPABASE_KEY no ambiente "
+            "ou SUPABASE_KEY em st.secrets."
+        )
+
+    return supabase_url, supabase_key
+
+
+def supabase_configurado() -> bool:
+    try:
+        obter_credenciais_supabase()
+        return True
+    except RuntimeError:
+        return False
+
+
+def _limpar_sessao():
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise", "access_token"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+
+
+def redirecionar_para_login():
+    _limpar_sessao()
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
+
+
+def tratar_erro_autenticacao(exc) -> bool:
+    """
+    Retorna True se o erro indicar sessão expirada/credencial inválida e redireciona para o login.
+    """
+    try:
+        from postgrest.exceptions import APIError
+    except Exception:
+        APIError = Exception  # fallback para evitar ImportError em ambientes sem postgrest
+
+    msg = str(exc) if exc else ""
+    code = None
+    if isinstance(exc, APIError):
+        code = getattr(exc, "code", None)
+        if code is None and exc.args and isinstance(exc.args[0], dict):
+            code = exc.args[0].get("code")
+
+    if exc is None or code == "PGRST301" or "JWT expired" in msg or "Invalid JWT" in msg:
+        redirecionar_para_login()
+        return True
+    return False
+
+
+def executar_query_supabase(builder):
+    """
+    Executa uma query do Supabase e, se detectar sessão expirada (JWT), redireciona para o login.
+    Retorna o objeto de resposta do client Supabase.
+    """
+    try:
+        return builder.execute()
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
+
+
+def _invalidate_ir_after_write(user_id: str, ano: int | None = None, mes: int | None = None):
+    """Import tardio para evitar dependência circular com utils_ir."""
+    try:
+        from utils_ir import invalidate_ir_caches_for_ops
+        invalidate_ir_caches_for_ops(user_id, ano=ano, mes=mes)
+    except Exception:
+        # Invalidação fiscal não deve mascarar sucesso da escrita.
+        pass
+
+
 # Função utilitária para formatar números com vírgula para float, aceitando None, string, int ou float
 def formatar_numero_para_float(valor_str):
     if valor_str is None:
@@ -10,18 +169,6 @@ def formatar_numero_para_float(valor_str):
     if isinstance(valor_str, (int, float)):
         return float(valor_str)
     return 0.0
-
-from datetime import datetime
-from supabase import create_client
-import json
-import os
-import streamlit as st
-
-# Variáveis de conexão Supabase (diretamente no código)
-SUPABASE_URL = "https://iaealuasigceyzpbarvf.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhZWFsdWFzaWdjZXl6cGJhcnZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNzQ1NTEsImV4cCI6MjA2Mzk1MDU1MX0.ohrzecHP0MuQq-T9lyUdu2Jo6NAH5OWsgk8oKjXEQV8"
-import fitz  # PyMuPDF
-import re
 # Helper: classificar ativo por ticker para fins de isenção (20k só ações à vista)
 def _classe_ativo(ticker: str) -> str:
     """
@@ -57,14 +204,16 @@ def _classe_ativo(ticker: str) -> str:
     if suf2 == "11":
         return "etf_ou_fii"  # inclui FII e ETF
     return "acao"
-import uuid
-import requests
 def conectar_supabase():
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    from supabase import create_client
+    supabase_url, supabase_key = obter_credenciais_supabase()
+    return create_client(supabase_url, supabase_key)
 
 # Tabela de mapeamento de nomes XP para tickers
 def carregar_mapa_tickers():
-    response = supabase_autenticado().table("mapa_tickers").select("nome_xp, ticker_bdr").execute()
+    response = executar_query_supabase(
+        supabase_autenticado().table("mapa_tickers").select("nome_xp, ticker_bdr")
+    )
     if response.data:
         return {item["nome_xp"].upper(): item["ticker_bdr"].upper() for item in response.data}
     return {}
@@ -79,7 +228,7 @@ def salvar_mapa_ticker(nome_xp, ticker_bdr):
         "ticker_bdr": ticker_bdr.upper(),
         "user_id": st.session_state.uid
     }
-    supabase_autenticado().table("mapa_tickers").insert(dados).execute()
+    executar_query_supabase(supabase_autenticado().table("mapa_tickers").insert(dados))
 
 #
 # Todas as funções agora dependem de uma variável 'usuario' que precisa ser capturada no início da execução via obter_usuario()
@@ -132,23 +281,7 @@ def carregar_carteira_supabase(usuario):
         ).eq("user_id", user_id).execute()
         return response.data
     except Exception as e:
-        # Importa APIError para identificar o erro corretamente
-        try:
-            from postgrest.exceptions import APIError
-        except ImportError:
-            APIError = Exception  # fallback
-        if isinstance(e, APIError):
-            if getattr(e, "code", "") == "PGRST301" or "JWT expired" in str(e):
-                st.session_state.clear()
-                st.error("Sua sessão expirou. Faça login novamente.")
-                st.stop()
-            else:
-                raise e
-        elif "JWT expired" in str(e):
-            st.session_state.clear()
-            st.error("Sua sessão expirou. Faça login novamente.")
-            st.stop()
-        else:
+        if not tratar_erro_autenticacao(e):
             raise e
 
 
@@ -169,7 +302,7 @@ def inserir_ativo_carteira(usuario, ticker, quantidade, custo, data_compra, cust
         "data_compra": data_compra,
         "custo_operacional": custo_operacional
     }
-    supabase_autenticado().table("carteira").insert(dados).execute()
+    executar_query_supabase(supabase_autenticado().table("carteira").insert(dados))
     # Atualiza a session_state.posicao_atual com os dados atuais do banco
     st.session_state.posicao_atual = [
         {
@@ -189,15 +322,20 @@ def deletar_ativo_carteira(uuid):
         return {"erro": "UUID inválido"}
 
     try:
-        resposta = supabase_autenticado().table("carteira") \
-            .delete() \
-            .eq("id", uuid) \
-            .eq("user_id", st.session_state.uid) \
-            .execute()
+        resposta = executar_query_supabase(
+            supabase_autenticado().table("carteira")
+            .delete()
+            .eq("id", uuid)
+            .eq("user_id", st.session_state.uid)
+        )
         return resposta
-    except Exception as e:
-        print(f"[ERRO] Falha ao deletar ativo: {e}")
-        return {"erro": str(e)}
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao deletar ativo: {exc}")
+        return {"erro": str(exc)}
 
 
 def editar_ativo_carteira(uuid, novos_dados: dict):
@@ -213,17 +351,22 @@ def editar_ativo_carteira(uuid, novos_dados: dict):
     if "custo_operacional" in novos_dados:
         novos_dados["custo_operacional"] = formatar_numero_para_float(novos_dados["custo_operacional"])
     try:
-        resposta = supabase_autenticado().table("carteira") \
-            .update(novos_dados) \
-            .eq("id", uuid) \
-            .execute()
+        resposta = executar_query_supabase(
+            supabase_autenticado().table("carteira")
+            .update(novos_dados)
+            .eq("id", uuid)
+        )
         if hasattr(resposta, "data") and resposta.data:
             return resposta
         else:
             print("[ERRO] Resposta sem dados ao editar ativo:", resposta)
             return None
-    except Exception as e:
-        print("[ERRO] ao editar ativo:", e)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print("[ERRO] ao editar ativo:", exc)
         return None
 
 
@@ -233,12 +376,18 @@ def editar_ativo_carteira(uuid, novos_dados: dict):
 
 def carregar_favoritos(user_id):
     try:
-        response = supabase_autenticado().table("favoritos").select("ticker").eq("user_id", user_id).execute()
+        response = executar_query_supabase(
+            supabase_autenticado().table("favoritos").select("ticker").eq("user_id", user_id)
+        )
         if response.data:
             return [item["ticker"] for item in response.data]
         return []
-    except Exception as e:
-        print("Erro ao carregar favoritos:", e)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print("Erro ao carregar favoritos:", exc)
         return []
 
 
@@ -254,7 +403,7 @@ def adicionar_favorito(ticker):
     if not st.session_state.get("uid"):
         st.error("ID de usuário (uid) não disponível.")
         return
-    supabase_autenticado().table("favoritos").insert(dados).execute()
+    executar_query_supabase(supabase_autenticado().table("favoritos").insert(dados))
 
 
 def remover_favorito(ticker):
@@ -263,13 +412,18 @@ def remover_favorito(ticker):
     """
     garantir_usuario_sessao()
     try:
-        supabase_autenticado().table("favoritos") \
-            .delete() \
-            .eq("user_id", st.session_state.uid) \
-            .eq("ticker", ticker) \
-            .execute()
-    except Exception as e:
-        print("Erro ao remover favorito:", e)
+        executar_query_supabase(
+            supabase_autenticado().table("favoritos")
+            .delete()
+            .eq("user_id", st.session_state.uid)
+            .eq("ticker", ticker)
+        )
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print("Erro ao remover favorito:", exc)
 
 
 
@@ -326,8 +480,40 @@ def traduzir_recomendacao(codigo):
 
 # Funções para gerenciamento de ativos vendidos
 
+def _normalizar_data_para_date(valor):
+    """
+    Converte datas flexíveis para objeto date.
+    Aceita: date/datetime, ISO (YYYY-MM-DD), dd/mm/yyyy, dd/mm/yy e variantes simples.
+    Retorna None se não conseguir converter.
+    """
+    if valor is None:
+        return None
+    if isinstance(valor, date) and not isinstance(valor, datetime):
+        return valor
+    if isinstance(valor, datetime):
+        return valor.date()
+    s = str(valor).strip()
+    if not s:
+        return None
+    # Tenta ISO primeiro
+    try:
+        return datetime.fromisoformat(s.replace("T", " ").split("+")[0].split(".")[0]).date()
+    except Exception:
+        pass
+    # Tenta formatos comuns BR
+    for fmt in ("%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except Exception:
+            continue
+    return None
+
 def inserir_venda(usuario, ticker, quantidade, preco_compra, data_compra, preco_venda, data_venda, custo_operacional, irrf: float = 0.0):
     try:
+        data_venda_dt = _normalizar_data_para_date(data_venda)
+        data_compra_dt = _normalizar_data_para_date(data_compra)
+        data_venda_iso = data_venda_dt.isoformat() if data_venda_dt else data_venda
+        data_compra_iso = data_compra_dt.isoformat() if data_compra_dt else data_compra
         # Sanitiza IRRF (não-negativo, aceita string com vírgula)
         try:
             irrf_sanit = formatar_numero_para_float(irrf)
@@ -341,38 +527,181 @@ def inserir_venda(usuario, ticker, quantidade, preco_compra, data_compra, preco_
             "ticker": ticker,
             "quantidade": quantidade,
             "preco_compra": preco_compra,
-            "data_compra": data_compra,
+            "data_compra": data_compra_iso,
             "preco_venda": preco_venda,
-            "data_venda": data_venda,
+            "data_venda": data_venda_iso,
             "custo_operacional": custo_operacional,
             "irrf": irrf_sanit
         }
-        resposta = supabase_autenticado().table("ativos_vendidos").insert(dados).execute()
+        resposta = executar_query_supabase(supabase_autenticado().table("ativos_vendidos").insert(dados))
+        if hasattr(resposta, "data") and resposta.data and data_venda_dt:
+            _invalidate_ir_after_write(st.session_state.uid, data_venda_dt.year, data_venda_dt.month)
         return hasattr(resposta, "data") and resposta.data
-    except Exception as e:
-        print(f"Erro ao inserir venda: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"Erro ao inserir venda: {exc}")
         return False
+
+
+def normalizar_datas_legadas_ativos_vendidos(user_id: str | None = None):
+    """
+    Utilitário manual para padronizar datas de compra/venda em ativos_vendidos para ISO (YYYY-MM-DD).
+    - Usa _normalizar_data_para_date para converter.
+    - Atualiza somente quando o valor ISO difere do armazenado.
+    - Idempotente, sem UI; logs no console.
+    """
+    uid = user_id or st.session_state.get("uid")
+    if not uid:
+        print("[normalizar_datas_legadas] user_id ausente; abortando.")
+        return {"analisados": 0, "corrigidos": 0, "erros": []}
+
+    try:
+        sb = supabase_autenticado()
+        resp = executar_query_supabase(
+            sb.table("ativos_vendidos").select("id,data_compra,data_venda").eq("user_id", uid)
+        )
+        rows = getattr(resp, "data", []) or []
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[normalizar_datas_legadas] erro ao buscar linhas: {exc}")
+        return {"analisados": 0, "corrigidos": 0, "erros": ["fetch_error"]}
+
+    analisados = len(rows)
+    corrigidos = 0
+    erros: list = []
+    competencias_invalidadas: set[tuple[int, int]] = set()
+
+    def _iso_if_convertible(valor):
+        dt = _normalizar_data_para_date(valor)
+        return dt.isoformat() if dt else None
+
+    for r in rows:
+        rid = r.get("id")
+        try:
+            dv_raw = r.get("data_venda")
+            dc_raw = r.get("data_compra")
+            dv_iso = _iso_if_convertible(dv_raw)
+            dc_iso = _iso_if_convertible(dc_raw)
+            update_payload = {}
+
+            # Só atualiza se temos valor convertível e diferente do armazenado
+            if dv_iso and str(dv_raw).strip() != dv_iso:
+                update_payload["data_venda"] = dv_iso
+            if dc_iso and str(dc_raw).strip() != dc_iso:
+                update_payload["data_compra"] = dc_iso
+
+            if not update_payload:
+                continue
+
+            executar_query_supabase(
+                sb.table("ativos_vendidos").update(update_payload).eq("id", rid).eq("user_id", uid)
+            )
+            corrigidos += 1
+            if dv_iso:
+                try:
+                    dt_venda = _normalizar_data_para_date(dv_iso)
+                    if dt_venda:
+                        competencias_invalidadas.add((dt_venda.year, dt_venda.month))
+                except Exception:
+                    pass
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+            erros.append(rid)
+            print(f"[normalizar_datas_legadas] falha ao atualizar id={rid}: {exc}")
+            continue
+
+    for ano_mes in competencias_invalidadas:
+        try:
+            _invalidate_ir_after_write(uid, ano_mes[0], ano_mes[1])
+        except Exception:
+            pass
+
+    print(
+        f"[normalizar_datas_legadas] analisados={analisados} corrigidos={corrigidos} erros={len(erros)} ids_erro={erros}"
+    )
+    return {"analisados": analisados, "corrigidos": corrigidos, "erros": erros}
 
 
 def carregar_vendas(usuario):
     try:
-        response = supabase_autenticado().table("ativos_vendidos").select("*").eq("user_id", st.session_state.uid).execute()
+        response = executar_query_supabase(
+            supabase_autenticado().table("ativos_vendidos").select("*").eq("user_id", st.session_state.uid)
+        )
         return response.data
-    except Exception as e:
-        print(f"Erro ao carregar vendas: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"Erro ao carregar vendas: {exc}")
         return []
 
 def deletar_venda(uuid):
-    supabase_autenticado().table("ativos_vendidos").delete().eq("id", uuid).eq("user_id", st.session_state.uid).execute()
+    data_venda_dt = None
+    try:
+        resp = executar_query_supabase(
+            supabase_autenticado().table("ativos_vendidos").select("data_venda").eq("id", uuid).eq("user_id", st.session_state.uid).single()
+        )
+        row = getattr(resp, "data", None) or {}
+        data_venda_dt = _normalizar_data_para_date((row or {}).get("data_venda"))
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+    executar_query_supabase(
+        supabase_autenticado().table("ativos_vendidos").delete().eq("id", uuid).eq("user_id", st.session_state.uid)
+    )
+    if data_venda_dt:
+        _invalidate_ir_after_write(st.session_state.uid, data_venda_dt.year, data_venda_dt.month)
+    else:
+        _invalidate_ir_after_write(st.session_state.uid)
 
 
 
 # Função para editar vendas
 def editar_venda(uuid, novos_dados: dict):
     try:
-        supabase_autenticado().table("ativos_vendidos").update(novos_dados).eq("id", uuid).eq("user_id", st.session_state.uid).execute()
-    except Exception as e:
-        print(f"Erro ao editar venda: {e}")
+        competencias_alvo: set[tuple[int, int]] = set()
+        try:
+            resp_prev = executar_query_supabase(
+                supabase_autenticado().table("ativos_vendidos").select("data_venda").eq("id", uuid).eq("user_id", st.session_state.uid).single()
+            )
+            prev_row = getattr(resp_prev, "data", None) or {}
+            prev_dt = _normalizar_data_para_date((prev_row or {}).get("data_venda"))
+            if prev_dt:
+                competencias_alvo.add((prev_dt.year, prev_dt.month))
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+        new_dt = _normalizar_data_para_date((novos_dados or {}).get("data_venda"))
+        if new_dt:
+            competencias_alvo.add((new_dt.year, new_dt.month))
+        executar_query_supabase(
+            supabase_autenticado().table("ativos_vendidos").update(novos_dados).eq("id", uuid).eq("user_id", st.session_state.uid)
+        )
+        if competencias_alvo:
+            for ano_mes in competencias_alvo:
+                _invalidate_ir_after_write(st.session_state.uid, ano_mes[0], ano_mes[1])
+        else:
+            _invalidate_ir_after_write(st.session_state.uid)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"Erro ao editar venda: {exc}")
 
 # Função para atualizar venda no Supabase
 
@@ -380,12 +709,14 @@ def atualizar_venda(id, preco_compra, preco_venda, quantidade, data_compra, data
     """
     Atualiza os dados de uma venda no Supabase.
     """
+    data_venda_dt = _normalizar_data_para_date(data_venda)
+    data_compra_dt = _normalizar_data_para_date(data_compra)
     novos_dados = {
         "preco_compra": preco_compra,
         "preco_venda": preco_venda,
         "quantidade": quantidade,
-        "data_compra": data_compra,
-        "data_venda": data_venda
+        "data_compra": data_compra_dt.isoformat() if data_compra_dt else data_compra,
+        "data_venda": data_venda_dt.isoformat() if data_venda_dt else data_venda
     }
     if irrf is not None:
         try:
@@ -396,18 +727,47 @@ def atualizar_venda(id, preco_compra, preco_venda, quantidade, data_compra, data
         except Exception:
             novos_dados["irrf"] = 0.0
     try:
-        supabase_autenticado().table("ativos_vendidos").update(novos_dados).eq("id", id).eq("user_id", st.session_state.uid).execute()
-    except Exception as e:
-        print(f"[ERRO] Falha ao atualizar venda com ID {id}: {e}")
+        competencias_alvo: set[tuple[int, int]] = set()
+        try:
+            resp_prev = executar_query_supabase(
+                supabase_autenticado().table("ativos_vendidos").select("data_venda").eq("id", id).eq("user_id", st.session_state.uid).single()
+            )
+            prev_row = getattr(resp_prev, "data", None) or {}
+            prev_dt = _normalizar_data_para_date((prev_row or {}).get("data_venda"))
+            if prev_dt:
+                competencias_alvo.add((prev_dt.year, prev_dt.month))
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+        executar_query_supabase(
+            supabase_autenticado().table("ativos_vendidos").update(novos_dados).eq("id", id).eq("user_id", st.session_state.uid)
+        )
+        if data_venda_dt:
+            competencias_alvo.add((data_venda_dt.year, data_venda_dt.month))
+        if competencias_alvo:
+            for ano_mes in competencias_alvo:
+                _invalidate_ir_after_write(st.session_state.uid, ano_mes[0], ano_mes[1])
+        else:
+            _invalidate_ir_after_write(st.session_state.uid)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao atualizar venda com ID {id}: {exc}")
 
 
 
 
 # Função utilitária para cálculo de desempenho consolidado por ativo
 from collections import defaultdict
-import yfinance as yf
 
 def calcular_desempenho_ativos(lista_entradas, origem="carteira"):
+    if yf is None:
+        raise ImportError("yfinance não está instalado no ambiente atual.")
+
     desempenho = defaultdict(lambda: {"quantidade": 0, "valor_total": 0, "valor_atual": 0, "resultado": 0})
 
     if origem == "carteira":
@@ -512,6 +872,8 @@ def calcular_desempenho_consolidado(posicao_atual: list) -> list:
 
 # Função para obter o preço atual do ativo via yfinance, com fallback
 def obter_preco_ativo(ticker):
+    if yf is None:
+        return "N/D"
     try:
         ticker_yf = yf.Ticker(ticker)
         if hasattr(ticker_yf, 'fast_info') and ticker_yf.fast_info and 'last_price' in ticker_yf.fast_info:
@@ -639,12 +1001,22 @@ def importar_e_inserir_pdf(caminho_pdf: str, usuario: str):
 
 def carregar_dividendos_usuario(usuario):
     try:
-        response = supabase_autenticado().table("dividendos_recebidos").select("id, ticker, tipo, valor, quantidade, data").eq("user_id", st.session_state.uid).order("data", desc=True).execute()
+        response = executar_query_supabase(
+            supabase_autenticado()
+            .table("dividendos_recebidos")
+            .select("id, ticker, tipo, valor, quantidade, data")
+            .eq("user_id", st.session_state.uid)
+            .order("data", desc=True)
+        )
         if response.data:
             return response.data
         return []
-    except Exception as e:
-        print(f"Erro ao carregar dividendos: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"Erro ao carregar dividendos: {exc}")
         return []
 
 def parse_data_flexivel(data_str):
@@ -719,10 +1091,16 @@ def inserir_dividendo(usuario, ticker, data_pagamento, valor, quantidade, tipo):
         "data": data_pagamento if isinstance(data_pagamento, str) else data_pagamento.isoformat()
     }
     try:
-        resultado = supabase_autenticado().table("dividendos_recebidos").insert(dados).execute()
+        resultado = executar_query_supabase(
+            supabase_autenticado().table("dividendos_recebidos").insert(dados)
+        )
         return resultado.data is not None
-    except Exception as e:
-        print(f"[ERRO] Falha ao inserir dividendo: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao inserir dividendo: {exc}")
         return False
 
 
@@ -730,10 +1108,16 @@ def inserir_dividendo(usuario, ticker, data_pagamento, valor, quantidade, tipo):
 # Função para excluir dividendo por ID
 def excluir_dividendo(id):
     try:
-        supabase_autenticado().table("dividendos_recebidos").delete().eq("id", id).eq("user_id", st.session_state.uid).execute()
+        executar_query_supabase(
+            supabase_autenticado().table("dividendos_recebidos").delete().eq("id", id).eq("user_id", st.session_state.uid)
+        )
         print(f"[DEBUG] Dividendo com ID {id} excluído com sucesso.")
-    except Exception as e:
-        print(f"[ERRO] Falha ao excluir dividendo com ID {id}: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao excluir dividendo com ID {id}: {exc}")
 
 
 # Função para atualizar dividendo existente
@@ -741,9 +1125,15 @@ def excluir_dividendo(id):
 def atualizar_dividendo(id, novos_dados: dict):
     try:
         # Faz update dos campos fornecidos no dicionário
-        supabase_autenticado().table("dividendos_recebidos").update(novos_dados).eq("id", id).eq("user_id", st.session_state.uid).execute()
-    except Exception as e:
-        print(f"[ERRO] Falha ao atualizar dividendo com ID {id}: {e}")
+        executar_query_supabase(
+            supabase_autenticado().table("dividendos_recebidos").update(novos_dados).eq("id", id).eq("user_id", st.session_state.uid)
+        )
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao atualizar dividendo com ID {id}: {exc}")
 
 
 # Função para restaurar usuario, uid e access_token do session_state a partir dos parâmetros da URL
@@ -762,18 +1152,15 @@ def restaurar_usuario_sessao():
         and "usuario" in st.session_state
         and "uid" in st.session_state
     ):
-        from supabase import create_client
-        url = SUPABASE_URL
-        key = SUPABASE_KEY
-        cliente = create_client(url, key)
         try:
+            from supabase import create_client
+            supabase_url, supabase_key = obter_credenciais_supabase()
+            cliente = create_client(supabase_url, supabase_key)
             sessao = cliente.auth.get_session()
             if sessao and sessao.access_token:
                 st.session_state.access_token = sessao.access_token
-        except Exception as e:
-            st.warning("Não foi possível restaurar token de acesso.")
-
-# Função para garantir usuario e uid no session_state a partir dos parâmetros da URL
+        except Exception:
+            pass
 
 def garantir_usuario_sessao():
     if "usuario" not in st.session_state or "uid" not in st.session_state:
@@ -815,16 +1202,16 @@ def calcular_custo_ajustado(custo_original, quantidade, dividendos):
 # Função para obter cliente Supabase autenticado via access_token do session_state
 def supabase_autenticado():
     if "access_token" in st.session_state:
-        from httpx import Client as HTTPXClient
+        from supabase import create_client
         from supabase.lib.client_options import ClientOptions
 
         headers = {"Authorization": f"Bearer {st.session_state['access_token']}"}
         client_options = ClientOptions(headers=headers)
+        supabase_url, supabase_key = obter_credenciais_supabase()
 
-        return create_client(SUPABASE_URL, SUPABASE_KEY, options=client_options)
+        return create_client(supabase_url, supabase_key, options=client_options)
     else:
-        st.error("Token de acesso não encontrado. Usuário pode não estar autenticado corretamente.")
-        st.stop()
+        redirecionar_para_login()
 
 
 # 🔹 Função: inserir_opcao_carteira
@@ -878,12 +1265,17 @@ def inserir_opcao_carteira(
             irrf_pendente = 0.0
     nova_opcao["irrf_abertura_total"] = irrf_total
     nova_opcao["irrf_abertura_pendente"] = irrf_pendente
-    supabase_autenticado().table("opcoes_carteira").insert(nova_opcao).execute()
+    executar_query_supabase(supabase_autenticado().table("opcoes_carteira").insert(nova_opcao))
+    dt_op = _normalizar_data_para_date(data_operacao)
+    if dt_op:
+        _invalidate_ir_after_write(st.session_state.uid, dt_op.year, dt_op.month)
+    else:
+        _invalidate_ir_after_write(st.session_state.uid)
 
 
 # 🔹 Função: atualizar_opcao_carteira
 # Objetivo: Atualiza uma posição viva existente (quantidade, preço, etc.)
-def atualizar_opcao_carteira(uuid, nova_quantidade, novo_custo):
+def atualizar_opcao_carteira(uuid, nova_quantidade, novo_custo, invalidate_ir: bool = True):
     """
     Atualiza a quantidade e o custo restante de uma posição viva na opcoes_carteira.
     """
@@ -893,7 +1285,27 @@ def atualizar_opcao_carteira(uuid, nova_quantidade, novo_custo):
         "quantidade": nova_quantidade,
         "custo": novo_custo
     }
-    supabase_autenticado().table("opcoes_carteira").update(dados).eq("id", uuid).eq("user_id", st.session_state.uid).execute()
+    data_operacao_dt = None
+    if invalidate_ir:
+        try:
+            resp_prev = executar_query_supabase(
+                supabase_autenticado().table("opcoes_carteira").select("data_operacao").eq("id", uuid).eq("user_id", st.session_state.uid).single()
+            )
+            prev_row = getattr(resp_prev, "data", None) or {}
+            data_operacao_dt = _normalizar_data_para_date((prev_row or {}).get("data_operacao"))
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+    executar_query_supabase(
+        supabase_autenticado().table("opcoes_carteira").update(dados).eq("id", uuid).eq("user_id", st.session_state.uid)
+    )
+    if invalidate_ir:
+        if data_operacao_dt:
+            _invalidate_ir_after_write(st.session_state.uid, data_operacao_dt.year, data_operacao_dt.month)
+        else:
+            _invalidate_ir_after_write(st.session_state.uid)
 
 
 
@@ -938,7 +1350,12 @@ def registrar_operacao_opcao(
         "data_encerramento": data_encerramento,
         "venda_coberta": venda_coberta
     }
-    supabase_autenticado().table("opcoes_operacoes").insert(dados).execute()
+    executar_query_supabase(supabase_autenticado().table("opcoes_operacoes").insert(dados))
+    dt_comp = _normalizar_data_para_date(data_encerramento) or _normalizar_data_para_date(data_operacao)
+    if dt_comp:
+        _invalidate_ir_after_write(st.session_state.uid, dt_comp.year, dt_comp.month)
+    else:
+        _invalidate_ir_after_write(st.session_state.uid)
 
 
 # Função auxiliar para finalizar operações de opções (total ou parcial)
@@ -988,14 +1405,19 @@ def finalizar_operacao_opcao(dados_vivos: dict, quantidade_finalizada: int, prec
     if tipo_inicial_lower == "venda" and forma_lower == "recompra":
         # Buscar pendente e quantidade viva atuais na carteira
         try:
-            resp_vivo = supabase_autenticado().table("opcoes_carteira") \
-                .select("quantidade, irrf_abertura_pendente") \
-                .eq("id", dados_vivos["id"]) \
-                .eq("user_id", st.session_state.uid) \
-                .single() \
-                .execute()
-            vivo = getattr(resp_vivo, 'data', None) or resp_vivo.get('data')
-        except Exception:
+            resp_vivo = executar_query_supabase(
+                supabase_autenticado().table("opcoes_carteira")
+                .select("quantidade, irrf_abertura_pendente")
+                .eq("id", dados_vivos["id"])
+                .eq("user_id", st.session_state.uid)
+                .single()
+            )
+            vivo = getattr(resp_vivo, "data", None) or (resp_vivo.get("data") if isinstance(resp_vivo, dict) else None)
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
             vivo = None
 
         qtd_viva_atual = int((vivo or {}).get("quantidade") or dados_vivos.get("quantidade") or 0)
@@ -1015,13 +1437,18 @@ def finalizar_operacao_opcao(dados_vivos: dict, quantidade_finalizada: int, prec
         # Atualiza pendente no vivo (fecha resíduo no último fechamento)
         novo_pendente = round(max(0.0, irrf_pendente - irrf_alocado_recompra), 2)
         try:
-            supabase_autenticado().table("opcoes_carteira") \
-                .update({"irrf_abertura_pendente": novo_pendente}) \
-                .eq("id", dados_vivos["id"]) \
-                .eq("user_id", st.session_state.uid) \
-                .execute()
-        except Exception as e:
-            print(f"[IRRF][WARN] Falha ao atualizar irrf_abertura_pendente: {e}")
+            executar_query_supabase(
+                supabase_autenticado().table("opcoes_carteira")
+                .update({"irrf_abertura_pendente": novo_pendente})
+                .eq("id", dados_vivos["id"])
+                .eq("user_id", st.session_state.uid)
+            )
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+            print(f"[IRRF][WARN] Falha ao atualizar irrf_abertura_pendente: {exc}")
 
     # IRRF final desta operação: fechamento (compra) + alocado (recompra de venda)
     irrf_final_operacao = round(float(irrf_no_fechamento) + float(irrf_alocado_recompra), 2)
@@ -1046,33 +1473,58 @@ def finalizar_operacao_opcao(dados_vivos: dict, quantidade_finalizada: int, prec
         "irrf": irrf_final_operacao,
     }
 
-    supabase_autenticado().table("opcoes_operacoes").insert(dados_op_finalizada).execute()
+    executar_query_supabase(supabase_autenticado().table("opcoes_operacoes").insert(dados_op_finalizada))
 
     # Finalização total
     if quantidade_finalizada == quantidade_viva:
-        excluir_operacao_opcao(dados_vivos["id"])
+        excluir_operacao_opcao(dados_vivos["id"], invalidate_ir=False)
     # Finalização parcial
     else:
         nova_quantidade = quantidade_viva - quantidade_finalizada
         custo_proporcional = custo_original * (nova_quantidade / quantidade_viva)
-        atualizar_opcao_carteira(dados_vivos["id"], nova_quantidade, custo_proporcional)
+        atualizar_opcao_carteira(dados_vivos["id"], nova_quantidade, custo_proporcional, invalidate_ir=False)
+
+    _invalidate_ir_after_write(uid)
 
 
 # 🔹 Função: excluir_operacao_opcao
 # Objetivo: Remove uma posição da tabela opcoes_carteira com base no ID e validação por user_id
-def excluir_operacao_opcao(id_opcao):
+def excluir_operacao_opcao(id_opcao, invalidate_ir: bool = True):
     """
     Exclui uma operação viva da tabela opcoes_carteira com base no ID.
     Garante que apenas o dono (user_id) possa realizar a exclusão.
     """
     try:
-        supabase_autenticado().table("opcoes_carteira") \
-            .delete() \
-            .eq("id", id_opcao) \
-            .eq("user_id", st.session_state.uid) \
-            .execute()
-    except Exception as e:
-        print(f"[ERRO] Falha ao excluir operação com ID {id_opcao}: {e}")
+        data_operacao_dt = None
+        if invalidate_ir:
+            try:
+                resp_prev = executar_query_supabase(
+                    supabase_autenticado().table("opcoes_carteira").select("data_operacao").eq("id", id_opcao).eq("user_id", st.session_state.uid).single()
+                )
+                prev_row = getattr(resp_prev, "data", None) or {}
+                data_operacao_dt = _normalizar_data_para_date((prev_row or {}).get("data_operacao"))
+            except Exception as exc:
+                if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                    raise
+                if tratar_erro_autenticacao(exc):
+                    raise
+        executar_query_supabase(
+            supabase_autenticado().table("opcoes_carteira")
+            .delete()
+            .eq("id", id_opcao)
+            .eq("user_id", st.session_state.uid)
+        )
+        if invalidate_ir:
+            if data_operacao_dt:
+                _invalidate_ir_after_write(st.session_state.uid, data_operacao_dt.year, data_operacao_dt.month)
+            else:
+                _invalidate_ir_after_write(st.session_state.uid)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao excluir operação com ID {id_opcao}: {exc}")
 
 
 # 🔹 Função: atualizar_operacao_opcao
@@ -1098,35 +1550,67 @@ def atualizar_operacao_opcao(id_opcao, dados):
             dados_sanit["irrf_abertura_pendente"] = 0.0
 
     supabase = supabase_autenticado()
-    response = supabase.table("opcoes_carteira") \
-        .update(dados_sanit) \
-        .eq("id", id_opcao) \
-        .eq("user_id", st.session_state["uid"]) \
-        .execute()
+    competencias_alvo: set[tuple[int, int]] = set()
+    try:
+        resp_prev = executar_query_supabase(
+            supabase.table("opcoes_carteira")
+            .select("data_operacao")
+            .eq("id", id_opcao)
+            .eq("user_id", st.session_state["uid"])
+            .single()
+        )
+        prev_row = getattr(resp_prev, "data", None) or {}
+        prev_dt = _normalizar_data_para_date((prev_row or {}).get("data_operacao"))
+        if prev_dt:
+            competencias_alvo.add((prev_dt.year, prev_dt.month))
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+    new_dt = _normalizar_data_para_date(dados_sanit.get("data_operacao"))
+    if new_dt:
+        competencias_alvo.add((new_dt.year, new_dt.month))
+    response = executar_query_supabase(
+        supabase.table("opcoes_carteira")
+        .update(dados_sanit)
+        .eq("id", id_opcao)
+        .eq("user_id", st.session_state["uid"])
+    )
 
     if len(response.data) == 0:
         raise RuntimeError("❌ Falha ao atualizar: operação não encontrada ou não pertence ao usuário.")
+    if competencias_alvo:
+        for ano_mes in competencias_alvo:
+            _invalidate_ir_after_write(st.session_state["uid"], ano_mes[0], ano_mes[1])
+    else:
+        _invalidate_ir_after_write(st.session_state["uid"])
 def carregar_operacoes_finalizadas(uid):
     """
     Carrega todas as operações finalizadas da tabela opcoes_operacoes para o usuário autenticado.
     Retorna uma lista de dicionários com os dados brutos.
     """
     try:
-        resposta = supabase_autenticado().table("opcoes_operacoes") \
+        resposta = executar_query_supabase(
+            supabase_autenticado().table("opcoes_operacoes")
             .select(
                 "id, ticker, tipo_opcao, tipo_operacao_inicial, quantidade, preco_inicial, preco_final, "
                 "forma_encerramento, data_operacao, data_encerramento, custo, venda_coberta"
-            ) \
-            .eq("user_id", uid) \
-            .order("data_encerramento", desc=True) \
-            .execute()
+            )
+            .eq("user_id", uid)
+            .order("data_encerramento", desc=True)
+        )
 
         if hasattr(resposta, "data") and resposta.data:
             return resposta.data
         else:
             return []
-    except Exception as e:
-        print(f"[ERRO] Falha ao carregar operações finalizadas: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao carregar operações finalizadas: {exc}")
         return []
 
 
@@ -1138,13 +1622,44 @@ def excluir_operacao_finalizada(id_operacao):
     Garante que apenas o dono (user_id) possa realizar a exclusão.
     """
     try:
-        supabase_autenticado().table("opcoes_operacoes") \
-            .delete() \
-            .eq("id", id_operacao) \
-            .eq("user_id", st.session_state.uid) \
-            .execute()
-    except Exception as e:
-        print(f"[ERRO] Falha ao excluir operação finalizada com ID {id_operacao}: {e}")
+        competencias_alvo: set[tuple[int, int]] = set()
+        try:
+            resp_prev = executar_query_supabase(
+                supabase_autenticado().table("opcoes_operacoes")
+                .select("data_operacao,data_encerramento")
+                .eq("id", id_operacao)
+                .eq("user_id", st.session_state.uid)
+                .single()
+            )
+            prev_row = getattr(resp_prev, "data", None) or {}
+            prev_dt_enc = _normalizar_data_para_date((prev_row or {}).get("data_encerramento"))
+            prev_dt_op = _normalizar_data_para_date((prev_row or {}).get("data_operacao"))
+            if prev_dt_enc:
+                competencias_alvo.add((prev_dt_enc.year, prev_dt_enc.month))
+            if prev_dt_op:
+                competencias_alvo.add((prev_dt_op.year, prev_dt_op.month))
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+        executar_query_supabase(
+            supabase_autenticado().table("opcoes_operacoes")
+            .delete()
+            .eq("id", id_operacao)
+            .eq("user_id", st.session_state.uid)
+        )
+        if competencias_alvo:
+            for ano_mes in competencias_alvo:
+                _invalidate_ir_after_write(st.session_state.uid, ano_mes[0], ano_mes[1])
+        else:
+            _invalidate_ir_after_write(st.session_state.uid)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao excluir operação finalizada com ID {id_operacao}: {exc}")
 
 
 # 🔹 Função: atualizar_operacao_finalizada
@@ -1252,7 +1767,8 @@ def alocar_coberturas_por_lote(user_id: str, ativo_base: str, lots: list) -> dic
         from datetime import datetime as _dt
         hoje_iso = _dt.today().strftime("%Y-%m-%d")
 
-        resposta = supabase_autenticado().table("opcoes_operacoes") \
+        resposta = executar_query_supabase(
+            supabase_autenticado().table("opcoes_operacoes")
             .select(
                 "id, ticker, tipo_operacao_inicial, venda_coberta, quantidade, preco_inicial, preco_final, custo, data_encerramento, ativo_base"
             ) \
@@ -1263,7 +1779,7 @@ def alocar_coberturas_por_lote(user_id: str, ativo_base: str, lots: list) -> dic
             .gte("data_encerramento", ini_iso) \
             .lte("data_encerramento", hoje_iso) \
             .order("data_encerramento", desc=False) \
-            .execute()
+        )
 
         ops = resposta.data if hasattr(resposta, "data") and resposta.data else []
 
@@ -1326,8 +1842,12 @@ def alocar_coberturas_por_lote(user_id: str, ativo_base: str, lots: list) -> dic
                 q_restante -= q_aloc
 
         return alocacoes
-    except Exception as e:
-        print(f"[ERRO] alocar_coberturas_por_lote: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] alocar_coberturas_por_lote: {exc}")
         return {"por_lote": {}, "ops": {}}
 
 
@@ -1425,12 +1945,13 @@ def obter_creditos_venda_coberta(uid):
     agrupados por ativo_base. Cada item inclui quantidade, valor líquido e data.
     """
     try:
-        resposta = supabase_autenticado().table("opcoes_operacoes") \
+        resposta = executar_query_supabase(
+            supabase_autenticado().table("opcoes_operacoes")
             .select("ativo_base, tipo_operacao_inicial, venda_coberta, quantidade, preco_inicial, preco_final, custo, data_encerramento") \
             .eq("user_id", uid) \
             .eq("venda_coberta", True) \
             .eq("tipo_operacao_inicial", "venda") \
-            .execute()
+        )
 
         dados = resposta.data if resposta and hasattr(resposta, "data") else []
         creditos = {}
@@ -1462,8 +1983,12 @@ def obter_creditos_venda_coberta(uid):
 
         return creditos
 
-    except Exception as e:
-        print(f"[ERRO] Falha ao obter créditos de venda coberta: {e}")
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao obter créditos de venda coberta: {exc}")
         return {}
 
 def atualizar_operacao_finalizada(id_operacao, novos_dados: dict):
@@ -1472,13 +1997,50 @@ def atualizar_operacao_finalizada(id_operacao, novos_dados: dict):
     Garante que apenas o dono (user_id) possa realizar a atualização.
     """
     try:
-        supabase_autenticado().table("opcoes_operacoes") \
-            .update(novos_dados) \
-            .eq("id", id_operacao) \
-            .eq("user_id", st.session_state.uid) \
-            .execute()
-    except Exception as e:
-        print(f"[ERRO] Falha ao atualizar operação finalizada com ID {id_operacao}: {e}")
+        competencias_alvo: set[tuple[int, int]] = set()
+        try:
+            resp_prev = executar_query_supabase(
+                supabase_autenticado().table("opcoes_operacoes")
+                .select("data_operacao,data_encerramento")
+                .eq("id", id_operacao)
+                .eq("user_id", st.session_state.uid)
+                .single()
+            )
+            prev_row = getattr(resp_prev, "data", None) or {}
+            prev_dt_enc = _normalizar_data_para_date((prev_row or {}).get("data_encerramento"))
+            prev_dt_op = _normalizar_data_para_date((prev_row or {}).get("data_operacao"))
+            if prev_dt_enc:
+                competencias_alvo.add((prev_dt_enc.year, prev_dt_enc.month))
+            if prev_dt_op:
+                competencias_alvo.add((prev_dt_op.year, prev_dt_op.month))
+        except Exception as exc:
+            if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                raise
+            if tratar_erro_autenticacao(exc):
+                raise
+        new_dt_enc = _normalizar_data_para_date((novos_dados or {}).get("data_encerramento"))
+        new_dt_op = _normalizar_data_para_date((novos_dados or {}).get("data_operacao"))
+        if new_dt_enc:
+            competencias_alvo.add((new_dt_enc.year, new_dt_enc.month))
+        if new_dt_op:
+            competencias_alvo.add((new_dt_op.year, new_dt_op.month))
+        executar_query_supabase(
+            supabase_autenticado().table("opcoes_operacoes")
+            .update(novos_dados)
+            .eq("id", id_operacao)
+            .eq("user_id", st.session_state.uid)
+        )
+        if competencias_alvo:
+            for ano_mes in competencias_alvo:
+                _invalidate_ir_after_write(st.session_state.uid, ano_mes[0], ano_mes[1])
+        else:
+            _invalidate_ir_after_write(st.session_state.uid)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print(f"[ERRO] Falha ao atualizar operação finalizada com ID {id_operacao}: {exc}")
 #
 # ==============================
 # Funções para logotipos de empresas
@@ -1499,7 +2061,9 @@ def get_logo_url(ticker: str) -> str | None:
     try:
         tnorm = ticker.upper().replace(".SA", "")
         # 1) buscar no Supabase
-        resp = supabase_autenticado().table("tickers_logos").select("*").eq("ticker", tnorm).execute()
+        resp = executar_query_supabase(
+            supabase_autenticado().table("tickers_logos").select("*").eq("ticker", tnorm)
+        )
         row = resp.data[0] if resp.data and len(resp.data) > 0 else None
 
         # 2) Se logo_url já existe, valida se é imagem
@@ -1522,9 +2086,13 @@ def get_logo_url(ticker: str) -> str | None:
                     # Atualiza Supabase se necessário
                     dados = {"ticker": tnorm, "domain": domain, "logo_url": url_clearbit, "source": "clearbit"}
                     try:
-                        supabase_autenticado().table("tickers_logos").upsert(dados).execute()
-                    except Exception as e:
-                        print("[WARN] Falha ao salvar logo no Supabase:", e)
+                        executar_query_supabase(supabase_autenticado().table("tickers_logos").upsert(dados))
+                    except Exception as exc:
+                        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                            raise
+                        if tratar_erro_autenticacao(exc):
+                            raise
+                        print("[WARN] Falha ao salvar logo no Supabase:", exc)
                     return url_clearbit
             except Exception:
                 pass
@@ -1558,16 +2126,24 @@ def get_logo_url(ticker: str) -> str | None:
                 # salva/upserta no Supabase
                 dados = {"ticker": tnorm, "domain": domain_heur, "logo_url": url_heur, "source": "clearbit"}
                 try:
-                    supabase_autenticado().table("tickers_logos").upsert(dados).execute()
-                except Exception as e:
-                    print("[WARN] Falha ao salvar logo no Supabase:", e)
+                    executar_query_supabase(supabase_autenticado().table("tickers_logos").upsert(dados))
+                except Exception as exc:
+                    if exc.__class__.__name__ in {"StopException", "RerunException"}:
+                        raise
+                    if tratar_erro_autenticacao(exc):
+                        raise
+                    print("[WARN] Falha ao salvar logo no Supabase:", exc)
                 return url_heur
         except Exception:
             pass
         # Se nada funcionou
         return None
-    except Exception as e:
-        print("[ERRO] get_logo_url:", e)
+    except Exception as exc:
+        if exc.__class__.__name__ in {"StopException", "RerunException"}:
+            raise
+        if tratar_erro_autenticacao(exc):
+            raise
+        print("[ERRO] get_logo_url:", exc)
         return None
 
 

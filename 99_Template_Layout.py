@@ -5,12 +5,14 @@ from utils import (
     supabase_autenticado,
     formatar_valor,
 )
+from utils_style import apply_global_dark_theme
 
 # Página template para novos layouts do WebApp Econômico.
 # Substitua os placeholders desta tela quando criar uma página real.
 restaurar_usuario_sessao()
 
 st.set_page_config(page_title="Template Layout", page_icon="🧩", layout="wide")
+apply_global_dark_theme()
 
 # Mantém o mesmo ajuste de margens utilizado nas páginas existentes.
 st.markdown(
@@ -35,6 +37,7 @@ st.markdown(
     }
     div[data-testid="stVerticalBlock"]:has(.fin-card-marker) {
         background-color: #2B2E3F;
+        color: #E5E7EB;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
         padding: 18px 22px;

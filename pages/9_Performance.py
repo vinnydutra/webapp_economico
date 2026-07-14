@@ -5,6 +5,7 @@ from datetime import datetime, date
 import pandas as pd
 import numpy as np
 import time
+from utils_style import apply_global_dark_theme
 
 try:
     import numpy_financial as npf
@@ -59,10 +60,13 @@ from utils import (
     parse_data_flexivel,
     carregar_dividendos_usuario,
     carregar_operacoes_finalizadas,
+    redirecionar_para_login,
+    tratar_erro_autenticacao,
 )
 
 
 st.set_page_config(page_title="Performance da Carteira", page_icon="📈", layout="wide")
+apply_global_dark_theme()
 
 # Mantém padronização de margens com as demais páginas
 st.markdown(
@@ -100,6 +104,11 @@ def render_plotly(fig, *, key: str | None = None) -> None:
         config=dict(PLOTLY_CONFIG_DEFAULT),
         key=key,
     )
+
+
+def _handle_auth_error(exc):
+    if tratar_erro_autenticacao(exc):
+        st.stop()
 
 
 if "_pag9_missing_quotes" not in st.session_state:
@@ -269,7 +278,8 @@ def custo_final_unit_para_item(item, alloc_por_ticker, supabase_client):
             .execute()
         )
         dividendos_brutos = res.data or []
-    except Exception:
+    except Exception as exc:
+        _handle_auth_error(exc)
         dividendos_brutos = []
 
     dividendos_unit_total = sum(float(d.get("valor") or 0.0) for d in dividendos_brutos)
@@ -1006,8 +1016,7 @@ def plotar_evolucao_mensal(
 # --- Sessão / autenticação ---
 restaurar_usuario_sessao()
 if "usuario" not in st.session_state or not st.session_state.usuario:
-    st.info("Usuário não autenticado.")
-    st.stop()
+    redirecionar_para_login()
 
 usuario_logado = st.session_state.get("usuario", "desconhecido")
 
@@ -1025,7 +1034,7 @@ st.markdown(
 )
 
 if st.query_params.get("logout") == "true":
-    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise"]:
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise", "access_token"]:
         if chave in st.session_state:
             del st.session_state[chave]
     st.query_params.clear()
@@ -1034,17 +1043,26 @@ if st.query_params.get("logout") == "true":
 
 uid = st.session_state.get("uid")
 if not uid:
-    st.info("Usuário não autenticado.")
-    st.stop()
+    redirecionar_para_login()
 
 # Carrega as vendas uma única vez para reaproveitar nos blocos da página.
-vendas_registros = carregar_vendas(uid) or []
+try:
+    vendas_registros = carregar_vendas(uid) or []
+except Exception as exc:
+    _handle_auth_error(exc)
+    st.error("Não foi possível carregar as vendas do usuário.")
+    st.stop()
 
 st.subheader("Performance da Carteira")
 
 
 # --- Dados da carteira ---
-carteira_registros = carregar_carteira_supabase(uid) or []
+try:
+    carteira_registros = carregar_carteira_supabase(uid) or []
+except Exception as exc:
+    _handle_auth_error(exc)
+    st.error("Não foi possível carregar a carteira do usuário.")
+    st.stop()
 if not carteira_registros:
     st.info("Nenhum ativo encontrado na carteira.")
     st.stop()
@@ -1053,12 +1071,14 @@ supabase_client = supabase_autenticado()
 
 try:
     dividendos_registros = carregar_dividendos_usuario(st.session_state.usuario) or []
-except Exception:
+except Exception as exc:
+    _handle_auth_error(exc)
     dividendos_registros = []
 
 try:
     opcoes_operacoes_registros = carregar_operacoes_finalizadas(uid) or []
-except Exception:
+except Exception as exc:
+    _handle_auth_error(exc)
     opcoes_operacoes_registros = []
 
 try:
@@ -1069,7 +1089,8 @@ try:
         .execute()
     )
     opcoes_carteira_registros = getattr(resp_opcoes_carteira, "data", None) or []
-except Exception:
+except Exception as exc:
+    _handle_auth_error(exc)
     opcoes_carteira_registros = []
 
 posicao_atual = []
@@ -1745,7 +1766,7 @@ else:
 if ordenar_por_participacao:
     desempenho = sorted(
         desempenho,
-        key=lambda x: ajuste_por_ticker.get(str(x.get("ticker", "")).upper(), {}).get("aporte", 0.0),
+        key=lambda x: ajuste_por_ticker.get(str(x.get("ticker", "")).upper(), {}).get("valor_atual", 0.0),
         reverse=True,
     )
 
@@ -1808,6 +1829,7 @@ st.markdown(
 # --- Renderização ---
 
 cards_carteira = []
+total_valor_atual = valor_atual
 for ativo in desempenho:
     ticker = str(ativo.get("ticker", "")).upper()
     variacao_pct = float(ativo.get("variacao_percentual") or 0.0)
@@ -1817,7 +1839,7 @@ for ativo in desempenho:
     aporte = info.get("aporte", 0.0)
     quantidade = info.get("quantidade", 0)
     valor_atual_ticker = info.get("valor_atual", aporte + variacao_rs)
-    participacao = (aporte / total_aportado * 100) if total_aportado > 0 else 0.0
+    participacao = (valor_atual_ticker / total_valor_atual * 100) if total_valor_atual > 0 else 0.0
     detalhes = [
         f"Aporte: {format_brl(aporte)}",
         f"Valor atual: {format_brl(valor_atual_ticker)}",

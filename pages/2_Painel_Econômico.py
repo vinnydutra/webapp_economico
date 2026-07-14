@@ -5,17 +5,21 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 from typing import Optional, List
+from utils_style import apply_global_dark_theme
 
 from utils import (
     restaurar_usuario_sessao,
     supabase_autenticado,
     formatar_valor,
+    redirecionar_para_login,
+    tratar_erro_autenticacao,
 )
 
 
 restaurar_usuario_sessao()
 
 st.set_page_config(page_title="Painel Econômico", page_icon="📊", layout="wide")
+apply_global_dark_theme()
 
 # Ajuste de margens consistente com o template e as demais páginas.
 st.markdown(
@@ -38,6 +42,7 @@ st.markdown(
     }
     div[data-testid="stVerticalBlock"]:has(.fin-card-marker) {
         background-color: #2B2E3F;
+        color: #E5E7EB;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
         padding: 18px 22px;
@@ -154,8 +159,7 @@ if st.query_params.get("logout") == "true":
     st.stop()
 
 if "uid" not in st.session_state or not st.session_state.uid:
-    st.warning("Usuário não autenticado. Faça login para visualizar o painel.")
-    st.stop()
+    redirecionar_para_login()
 
 supabase_client = supabase_autenticado()
 user_id = st.session_state.uid

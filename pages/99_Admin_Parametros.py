@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date
 import pandas as pd
+from utils_style import apply_global_dark_theme
 from utils_ir import (
     get_param,
     pf_set_vigencia_rpc,
@@ -9,7 +10,7 @@ from utils_ir import (
     pf_can_delete,
     normalizar_valor_parametro,
 )
-from utils import supabase_autenticado, get_logo_img_tag
+from utils import supabase_autenticado, get_logo_img_tag, redirecionar_para_login, tratar_erro_autenticacao
 import re
 
 ALLOWED_KEYS = [
@@ -56,14 +57,19 @@ def _fmt_date_br(v):
             return str(v)
 
 st.set_page_config(page_title="Admin – Parâmetros Fiscais", layout="wide")
+apply_global_dark_theme()
 
 
 st.title("⚙️ Administração – Parâmetros Fiscais")
 
 # Sessão alinhada ao padrão do app (mesmo fluxo da Pag8)
-if "uid" not in st.session_state:
-    st.warning("Usuário não autenticado. Faça login para continuar.")
-    st.stop()
+def _handle_auth_error(exc):
+    if tratar_erro_autenticacao(exc):
+        st.stop()
+
+
+if "uid" not in st.session_state or not st.session_state.get("usuario"):
+    redirecionar_para_login()
 supabase = supabase_autenticado()
 user_id = st.session_state["uid"]
 
@@ -72,6 +78,8 @@ def _retry_jwt(fn):
     try:
         return fn(supabase_autenticado())
     except Exception as e:
+        if tratar_erro_autenticacao(e):
+            st.stop()
         # Se o token expirou, renova o client e tenta de novo
         if "JWT expired" in str(e) or getattr(e, "code", None) == "PGRST301":
             return fn(supabase_autenticado())
@@ -287,7 +295,8 @@ except Exception as e:
 
 st.subheader("📋 Tickers com logos exibidos atualmente")
 st.caption(
-    "Consolidamos todos os tickers já presentes em `carteira` ou `ativos_vendidos` e mostramos abaixo o que o app renderiza hoje."
+    "Consolidamos todos os tickers já presentes em `carteira`, `ativos_vendidos`, `opcoes_carteira` (ativo_base) "
+    "e `opcoes_operacoes` (ativo_base) e mostramos abaixo o que o app renderiza hoje."
 )
 
 def _q_all_carteira(sb):
@@ -296,12 +305,26 @@ def _q_all_carteira(sb):
 def _q_all_vendidos(sb):
     return sb.table("ativos_vendidos").select("ticker").execute()
 
+def _q_all_opcoes_carteira(sb):
+    return sb.table("opcoes_carteira").select("ativo_base").execute()
+
+def _q_all_opcoes_operacoes(sb):
+    return sb.table("opcoes_operacoes").select("ativo_base").execute()
+
 try:
     resp_carteira = _retry_jwt(_q_all_carteira) if _retry_jwt else _q_all_carteira(supabase)
     resp_vendidos = _retry_jwt(_q_all_vendidos) if _retry_jwt else _q_all_vendidos(supabase)
+    resp_opc_carteira = _retry_jwt(_q_all_opcoes_carteira) if _retry_jwt else _q_all_opcoes_carteira(supabase)
+    resp_opc_operacoes = _retry_jwt(_q_all_opcoes_operacoes) if _retry_jwt else _q_all_opcoes_operacoes(supabase)
     tickers_carteira = {_normalize_ticker_logo(row.get("ticker")) for row in (resp_carteira.data or []) if row.get("ticker")}
     tickers_vendidos = {_normalize_ticker_logo(row.get("ticker")) for row in (resp_vendidos.data or []) if row.get("ticker")}
-    tickers_unicos = sorted(tickers_carteira.union(tickers_vendidos))
+    tickers_opc_carteira = {
+        _normalize_ticker_logo(row.get("ativo_base")) for row in (resp_opc_carteira.data or []) if row.get("ativo_base")
+    }
+    tickers_opc_operacoes = {
+        _normalize_ticker_logo(row.get("ativo_base")) for row in (resp_opc_operacoes.data or []) if row.get("ativo_base")
+    }
+    tickers_unicos = sorted(tickers_carteira.union(tickers_vendidos).union(tickers_opc_carteira).union(tickers_opc_operacoes))
 except Exception as e:
     tickers_unicos = []
     st.error(f"Não foi possível carregar os tickers consolidados: {e}")
@@ -319,7 +342,7 @@ if tickers_unicos:
             if col.button("Editar logo", key=f"edit-logo-{ticker_norm}"):
                 st.session_state["logo_edit_ticker"] = ticker_norm
 else:
-    st.info("Nenhum ticker encontrado nas tabelas `carteira` ou `ativos_vendidos`.")
+    st.info("Nenhum ticker encontrado nas tabelas `carteira`, `ativos_vendidos`, `opcoes_carteira` ou `opcoes_operacoes`.")
 
 edit_ticker = st.session_state.get("logo_edit_ticker")
 if edit_ticker:

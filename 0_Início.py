@@ -2,6 +2,8 @@ import streamlit as st
 from supabase import create_client, Client
 from utils import conectar_supabase
 from utils import restaurar_usuario_sessao
+from utils import supabase_configurado
+from utils_style import apply_global_dark_theme
 
 @st.cache_resource
 def get_supabase():
@@ -23,6 +25,7 @@ st.set_page_config(
     page_icon="💰",
     layout="wide"
 )
+apply_global_dark_theme()
 
 # Reduz espaçamento superior do container padrão do Streamlit
 st.markdown("""
@@ -32,6 +35,18 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
+
+if not supabase_configurado():
+    st.error(
+        "Configuração ausente do Supabase. Defina `SUPABASE_URL` e `SUPABASE_KEY` "
+        "no ambiente, em um arquivo `.env` local ou em `st.secrets`."
+    )
+    st.info(
+        "Exemplo de `.env`:\n"
+        "SUPABASE_URL=https://seu-projeto.supabase.co\n"
+        "SUPABASE_KEY=sua_chave_anon_ou_publishable"
+    )
+    st.stop()
 
 # Lógica de logout moderna
 if st.query_params.get("logout") == "true":

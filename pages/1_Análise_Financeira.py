@@ -4,15 +4,11 @@ from datetime import datetime
 import wikipedia
 import re
 import pandas as pd
+from utils_style import apply_global_dark_theme
+import requests
 
-import base64
-from pathlib import Path
-
-# Helper to convert image to base64 for HTML embedding
-def _img_to_base64(path: str) -> str:
-    p = Path(path)
-    with p.open("rb") as f:
-        return base64.b64encode(f.read()).decode()
+import time
+from typing import Any, Dict, Optional
 
 from finance_calcs import (
     calcular_oscilacao_mes,
@@ -39,6 +35,7 @@ restaurar_usuario_sessao()
 
 
 st.set_page_config(page_title="Dashboard Financeiro", page_icon="💰", layout="wide")
+apply_global_dark_theme()
 
 # Reduz o padding default do container principal para evitar espaço vazio no topo
 st.markdown("""
@@ -63,7 +60,7 @@ st.markdown(f"""
 
 # Limpa a sessão quando o usuário aciona o logout via query param
 if st.query_params.get("logout") == "true":
-    for chave in ["usuario", "carteira", "ticker", "favoritos_analise", "uid"]:
+    for chave in ["usuario", "carteira", "ticker", "favoritos_analise", "uid", "access_token"]:
         if chave in st.session_state:
             del st.session_state[chave]
     st.query_params.clear()
@@ -78,7 +75,162 @@ from utils import (
     formatar_valor,
     supabase_autenticado,
     traduzir_recomendacao,
+    redirecionar_para_login,
+    tratar_erro_autenticacao,
 )
+
+# =========================
+# Yahoo Finance: cache + rate-limit handling (HTTP 429)
+# =========================
+
+class YahooRateLimitError(Exception):
+    """Raised when Yahoo Finance returns rate limit / too many requests (HTTP 429)."""
+
+
+def _is_rate_limited_error(exc: Exception) -> bool:
+    msg = str(exc) or ""
+    msg_low = msg.lower()
+    # yfinance / requests / proxies can surface 429 in different shapes
+    return ("429" in msg_low) or ("too many request" in msg_low) or ("edge: too many requests" in msg_low)
+
+
+def _yf_call_with_backoff(fn, *, tries: int = 3, base_sleep: float = 0.7):
+    """
+    Execute a yfinance call with small exponential backoff on 429.
+    Keep tries low to avoid long UI freezes.
+    """
+    last_exc: Optional[Exception] = None
+    for i in range(tries):
+        try:
+            return fn()
+        except Exception as exc:
+            last_exc = exc
+            if _is_rate_limited_error(exc):
+                # short backoff; first retry is quick, later slightly longer
+                time.sleep(base_sleep * (2 ** i))
+                continue
+            raise
+    # After retries, surface a specific error so UI can explain the fix.
+    if last_exc and _is_rate_limited_error(last_exc):
+        raise YahooRateLimitError(str(last_exc))
+    raise last_exc if last_exc else Exception("Falha desconhecida ao consultar Yahoo Finance.")
+
+
+# ===== Yahoo Finance preflight check (fail fast on 429) =====
+def yahoo_preflight_check(ticker_symbol: str, timeout_sec: float = 2.5):
+    """
+    Fast fail check to detect Yahoo Finance rate limiting (HTTP 429)
+    before invoking yfinance (which can hang on retries/timeouts).
+
+    Important: the v7/finance/quote endpoint can return 401/403 without cookies/crumb;
+    those responses are NOT treated as rate-limit. Only 429 should hard-block.
+    """
+    url = "https://query1.finance.yahoo.com/v7/finance/quote"
+    params = {"symbols": ticker_symbol}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    }
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=timeout_sec)
+        if resp.status_code == 429:
+            raise YahooRateLimitError("HTTP 429 detected by preflight check")
+        # 200/401/403/404/etc: allow yfinance to proceed (it uses other endpoints/fallbacks)
+        return True
+    except requests.exceptions.Timeout:
+        # Soft failure: do not block yfinance
+        return True
+    except requests.exceptions.RequestException:
+        # Network errors other than 429 should not hard-block the page
+        return True
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def yf_fetch_fast_bundle(ticker_symbol: str) -> Dict[str, Any]:
+    """
+    Fast-moving data (price/history/info). Cached for 15 minutes.
+    This is the main win for interactive re-renders.
+    """
+    t = yf.Ticker(ticker_symbol)
+
+    # Prefer one larger history call and slice, to avoid multiple requests.
+    hist_1mo = _yf_call_with_backoff(lambda: t.history(period="1mo"))
+    hist_5d = hist_1mo.tail(5) if isinstance(hist_1mo, pd.DataFrame) else hist_1mo
+
+    info = _yf_call_with_backoff(lambda: t.info)
+
+    # Recommendations objects can be absent depending on ticker.
+    rec_summary = None
+    rec_df = None
+    try:
+        rec_summary = getattr(t, "recommendations_summary", None)
+    except Exception:
+        rec_summary = None
+    try:
+        rec_df = getattr(t, "recommendations", None)
+    except Exception:
+        rec_df = None
+
+    # 60d history used only for avg volume calc (best effort)
+    hist_60d = None
+    try:
+        hist_60d = _yf_call_with_backoff(lambda: t.history(period="60d"))
+    except Exception as exc:
+        # Don't fail the whole page for this secondary metric
+        if _is_rate_limited_error(exc):
+            hist_60d = None
+        else:
+            hist_60d = None
+
+    return {
+        "hist_1mo": hist_1mo,
+        "hist_5d": hist_5d,
+        "hist_60d": hist_60d,
+        "info": info or {},
+        "rec_summary": rec_summary,
+        "rec_df": rec_df,
+    }
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def yf_fetch_statements_bundle(ticker_symbol: str) -> Dict[str, Any]:
+    """
+    Slow-moving statements (financials/balance/quarterly). Cached for 6 hours.
+    """
+    t = yf.Ticker(ticker_symbol)
+
+    financials = None
+    balance_sheet = None
+    quarterly_financials = None
+
+    # These can trigger additional calls; keep them cached and resilient.
+    try:
+        financials = _yf_call_with_backoff(lambda: t.financials)
+    except Exception as exc:
+        if _is_rate_limited_error(exc):
+            raise YahooRateLimitError(str(exc))
+        financials = None
+
+    try:
+        balance_sheet = _yf_call_with_backoff(lambda: t.balance_sheet)
+    except Exception as exc:
+        if _is_rate_limited_error(exc):
+            raise YahooRateLimitError(str(exc))
+        balance_sheet = None
+
+    try:
+        quarterly_financials = _yf_call_with_backoff(lambda: t.quarterly_financials)
+    except Exception as exc:
+        if _is_rate_limited_error(exc):
+            raise YahooRateLimitError(str(exc))
+        quarterly_financials = None
+
+    return {
+        "financials": financials,
+        "balance_sheet": balance_sheet,
+        "quarterly_financials": quarterly_financials,
+    }
 
 
 def format_number_short(value):
@@ -191,49 +343,204 @@ def buscar_fundacao(nome_empresa):
 
 
 
-if "uid" in st.session_state and st.session_state.uid:
-    if "favoritos_analise" not in st.session_state or not isinstance(st.session_state["favoritos_analise"], list):
-        st.session_state["favoritos_analise"] = carregar_favoritos(st.session_state.uid)
-else:
-    st.warning("Usuário não autenticado. Faça login para acessar a carteira.")
-    st.stop()
+def _handle_auth_error(exc):
+    if tratar_erro_autenticacao(exc):
+        st.stop()
 
+
+if "uid" in st.session_state and st.session_state.uid:
+    if "favoritos_tags_selecionadas" not in st.session_state:
+        st.session_state["favoritos_tags_selecionadas"] = []
+    if "mostrar_input_nova_tag" not in st.session_state:
+        st.session_state["mostrar_input_nova_tag"] = False
+else:
+    redirecionar_para_login()
+
+# Carrega favoritos, tags e vínculos do Supabase para montar filtros e grade
+favoritos_data = []
+tags_data = []
+favorito_tags_map: dict[str, set[str]] = {}
+favoritos_por_ticker: dict[str, str] = {}
+tags_por_id: dict[str, str] = {}
+
+if st.session_state.get("uid"):
+    try:
+        supabase_client = supabase_autenticado()
+        favoritos_resp = supabase_client.table("favoritos") \
+            .select("id, ticker, created_at") \
+            .eq("user_id", st.session_state.uid) \
+            .order("created_at") \
+            .execute()
+        favoritos_data = favoritos_resp.data or []
+
+        tags_resp = supabase_client.table("favoritos_tags") \
+            .select("id, nome, created_at") \
+            .eq("user_id", st.session_state.uid) \
+            .order("nome") \
+            .execute()
+        tags_data = tags_resp.data or []
+
+        favoritos_ids = [fav["id"] for fav in favoritos_data]
+        if favoritos_ids:
+            links_resp = supabase_client.table("favoritos_tags_link") \
+                .select("favorito_id, tag_id") \
+                .in_("favorito_id", favoritos_ids) \
+                .execute()
+            for link in links_resp.data or []:
+                favorito_tags_map.setdefault(link["favorito_id"], set()).add(link["tag_id"])
+    except Exception as e:
+        _handle_auth_error(e)
+        st.error("❌ Não foi possível carregar favoritos e tags. Atualize a página.")
+        favoritos_data = []
+        tags_data = []
+        favorito_tags_map = {}
+
+tags_por_id = {tag["id"]: tag["nome"] for tag in tags_data}
+favoritos_por_ticker = {fav["ticker"]: fav["id"] for fav in favoritos_data}
+
+# Mantém a lista de favoritos na sessão (usada em outras partes da aplicação)
+st.session_state["favoritos_analise"] = [fav["ticker"] for fav in favoritos_data]
 carteira = st.session_state.get("favoritos_analise", [])
+
+# Garante que o filtro carregue apenas tags existentes
+st.session_state.favoritos_tags_selecionadas = [
+    tag_id for tag_id in st.session_state.get("favoritos_tags_selecionadas", []) if tag_id in tags_por_id
+]
 
 if 'ticker' not in st.session_state:
     st.session_state.ticker = "PETR4.SA"
 
-# Define o ticker atual a partir da sessão e gera lista ordenada de favoritos
+# Define o ticker atual a partir da sessão
 ticker = st.session_state.ticker
-tickers_ordenados = sorted(carteira)
 
 
-def render_favoritos_card():
+def filtrar_favoritos_por_tags(favoritos_lista, selecionadas, relacao_favorito_tags):
+    if not selecionadas:
+        return favoritos_lista
+    favoritos_filtrados = []
+    for favorito in favoritos_lista:
+        tags_do_favorito = relacao_favorito_tags.get(favorito["id"], set())
+        if all(tag_id in tags_do_favorito for tag_id in selecionadas):
+            favoritos_filtrados.append(favorito)
+    return favoritos_filtrados
+
+
+def render_favoritos_card(favoritos_lista, tags_disponiveis, relacao_favorito_tags):
+    selecionadas = st.session_state.get("favoritos_tags_selecionadas", [])
     with st.container():
         st.markdown("<div class='fin-card-marker'></div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div class='fin-title'>Favoritos <span class='fin-badge'>Seleção rápida</span></div>",
-            unsafe_allow_html=True,
-        )
+        header_cols = st.columns([2, 1])
+        with header_cols[0]:
+            st.markdown("<div class='fin-title'>Favoritos</div>", unsafe_allow_html=True)
 
-        if tickers_ordenados:
+        # Dropdown com Todos + tags para filtrar favoritos
+        with header_cols[1]:
+            opcoes_tags = [{"id": None, "nome": "Todos"}] + tags_disponiveis
+            id_selecionado = None
+            if selecionadas:
+                id_selecionado = selecionadas[0] if selecionadas[0] in {t["id"] for t in opcoes_tags if t["id"]} else None
+            indice_default = 0
+            for idx, opt in enumerate(opcoes_tags):
+                if opt["id"] == id_selecionado:
+                    indice_default = idx
+                    break
+            escolha = st.selectbox(
+                "Filtrar favoritos por tag",
+                options=opcoes_tags,
+                format_func=lambda opt: opt["nome"],
+                index=indice_default,
+                label_visibility="collapsed",
+                key="dropdown-tags-topo",
+            )
+            novo_id = escolha["id"]
+            nova_sel = [] if novo_id is None else [novo_id]
+            if set(nova_sel) != set(selecionadas):
+                st.session_state.favoritos_tags_selecionadas = nova_sel
+                st.rerun()
+
+        favoritos_filtrados = filtrar_favoritos_por_tags(favoritos_lista, selecionadas, relacao_favorito_tags)
+        if favoritos_filtrados:
+            favoritos_filtrados = sorted(
+                favoritos_filtrados,
+                key=lambda x: (x.get("ticker") or "").upper(),
+            )
             st.markdown("<div class='fin-pill-group'>", unsafe_allow_html=True)
             botoes_por_linha = 7
-            for i in range(0, len(tickers_ordenados), botoes_por_linha):
-                linha = tickers_ordenados[i:i + botoes_por_linha]
+            for i in range(0, len(favoritos_filtrados), botoes_por_linha):
+                linha = favoritos_filtrados[i:i + botoes_por_linha]
                 cols = st.columns(len(linha))
-                for col, ticker_item in zip(cols, linha):
+                for col, fav_item in zip(cols, linha):
                     with col:
+                        ticker_item = fav_item["ticker"]
                         if st.button(ticker_item, key=f"botao_topo_{ticker_item}", use_container_width=True):
                             st.session_state.ticker = ticker_item
                             st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
+        elif favoritos_lista:
+            st.markdown("<div class='fin-label'>Nenhum favorito com as tags selecionadas.</div>", unsafe_allow_html=True)
         else:
             st.markdown("<div class='fin-label'>Nenhum favorito cadastrado até o momento.</div>", unsafe_allow_html=True)
 
+def criar_tag_no_supabase(nome_tag):
+    nome_limpo = (nome_tag or "").strip()
+    if not nome_limpo:
+        st.warning("Informe um nome para a tag.")
+        return None
+
+    for tag in tags_data:
+        if tag.get("nome", "").lower() == nome_limpo.lower():
+            st.info("Essa tag já existe e pode ser usada.")
+            return tag
+
+    try:
+        resp = supabase_autenticado().table("favoritos_tags").insert(
+            {"user_id": st.session_state.uid, "nome": nome_limpo}
+        ).execute()
+        if hasattr(resp, "data") and resp.data:
+            return resp.data[0]
+    except Exception as exc:
+        _handle_auth_error(exc)
+        st.error("❌ Não foi possível criar a tag. Tente novamente.")
+    return None
 
 
-def render_card_contexto_vazio(*, ticker_atual: str | None = None, nome_empresa: str | None = None):
+def atualizar_relacoes_tags(favorito_id, novas_tags_ids, tags_atuais_ids):
+    if not favorito_id:
+        return
+    novas_set = set(novas_tags_ids)
+    atuais_set = set(tags_atuais_ids)
+    if novas_set == atuais_set:
+        return
+
+    supabase_client = supabase_autenticado()
+    remover = list(atuais_set - novas_set)
+    adicionar = list(novas_set - atuais_set)
+
+    try:
+        if remover:
+            supabase_client.table("favoritos_tags_link") \
+                .delete() \
+                .eq("favorito_id", favorito_id) \
+                .in_("tag_id", remover) \
+                .execute()
+        if adicionar:
+            registros = [{"favorito_id": favorito_id, "tag_id": tag_id} for tag_id in adicionar]
+            supabase_client.table("favoritos_tags_link").insert(registros).execute()
+    except Exception as exc:
+        _handle_auth_error(exc)
+        raise
+
+
+def render_card_contexto_vazio(
+    *,
+    ticker_atual: str | None = None,
+    nome_empresa: str | None = None,
+    favorito_id_atual: str | None = None,
+    tags_disponiveis: list | None = None,
+    relacao_tags: dict | None = None
+):
+    tags_disponiveis = tags_disponiveis or []
+    relacao_tags = relacao_tags or {}
     with st.container():
         st.markdown("<div class='fin-card-marker'></div>", unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns([0.5, 1, 1.5, 1])
@@ -244,17 +551,22 @@ def render_card_contexto_vazio(*, ticker_atual: str | None = None, nome_empresa:
             estrela = "⭐" if estrela_ativa else "☆"
             if st.button(estrela, key="star-button-card2", help="Adicionar ou remover dos Favoritos"):
                 if estrela_ativa:
+                    favorito_local = favorito_id_atual or favoritos_por_ticker.get(ticker)
+                    if favorito_local:
+                        try:
+                            supabase_autenticado().table("favoritos_tags_link").delete().eq("favorito_id", favorito_local).execute()
+                        except Exception as exc:
+                            _handle_auth_error(exc)
+                            pass
                     carteira.remove(ticker)
                 else:
                     carteira.append(ticker)
+                st.session_state.mostrar_input_nova_tag = False
                 st.session_state.favoritos_analise = carteira
                 if estrela_ativa:
                     remover_favorito(ticker)
                 else:
-                    if not supabase_autenticado():
-                        st.error("Você não está autenticado. Faça login para favoritar ativos.")
-                    else:
-                        adicionar_favorito(ticker)
+                    adicionar_favorito(ticker)
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
         with col2:
@@ -285,6 +597,66 @@ def render_card_contexto_vazio(*, ticker_atual: str | None = None, nome_empresa:
                 f"<div style='text-align:right; margin-top:8px;'><a class='fin-link' href='https://finance.yahoo.com/quote/{ticker_display}' target='_blank'>Yahoo! Finance</a></div>",
                 unsafe_allow_html=True,
             )
+        st.markdown("<div class='fin-divider'></div>", unsafe_allow_html=True)
+
+        # Edição de tags no card principal
+        if ticker in carteira:
+            favorito_id = favorito_id_atual or favoritos_por_ticker.get(ticker)
+            tags_do_favorito = sorted(list(relacao_tags.get(favorito_id, set())))
+            tags_cols = st.columns([3, 1])
+            with tags_cols[0]:
+                st.markdown("<div class='fin-label'>Tags do Favorito</div>", unsafe_allow_html=True)
+                selecao_tags = st.multiselect(
+                    "Tags vinculadas",
+                    [tag["id"] for tag in tags_disponiveis],
+                    default=tags_do_favorito,
+                    format_func=lambda tag_id: tags_por_id.get(tag_id, ""),
+                    label_visibility="collapsed",
+                    key=f"multitag-{ticker_display}"
+                )
+            with tags_cols[1]:
+                st.markdown("<div class='fin-label'>&nbsp;</div>", unsafe_allow_html=True)
+                if st.button("+ Criar Nova Tag", key=f"btn-criar-tag-{ticker_display}", use_container_width=True):
+                    st.session_state.mostrar_input_nova_tag = not st.session_state.get("mostrar_input_nova_tag", False)
+                    st.rerun()
+
+            if favorito_id and set(selecao_tags) != set(tags_do_favorito):
+                try:
+                    atualizar_relacoes_tags(favorito_id, selecao_tags, tags_do_favorito)
+                    st.rerun()
+                except Exception:
+                    st.error("Não foi possível atualizar as tags deste favorito.")
+            elif not favorito_id:
+                st.info("Favorito sem id encontrado no Supabase. Clique na estrela para salvar novamente.")
+
+            if st.session_state.get("mostrar_input_nova_tag"):
+                nova_tag_nome = st.text_input(
+                    "Nova Tag",
+                    key=f"nova-tag-input-{ticker_display}",
+                    placeholder="Ex.: Crescimento",
+                    label_visibility="collapsed",
+                )
+                criar_cols = st.columns([1, 3])
+                with criar_cols[0]:
+                    if st.button("Salvar tag", key=f"salvar-tag-{ticker_display}", use_container_width=True):
+                        nova_tag = criar_tag_no_supabase(nova_tag_nome)
+                        if nova_tag:
+                            novo_id = nova_tag.get("id")
+                            if novo_id and favorito_id:
+                                try:
+                                    if novo_id not in relacao_tags.get(favorito_id, set()):
+                                        supabase_autenticado().table("favoritos_tags_link").insert(
+                                            {"favorito_id": favorito_id, "tag_id": novo_id}
+                                        ).execute()
+                                except Exception as exc:
+                                    _handle_auth_error(exc)
+                                    st.error("Tag criada, mas não foi possível vincular ao favorito.")
+                            st.session_state.mostrar_input_nova_tag = False
+                            st.rerun()
+                with criar_cols[1]:
+                    st.markdown("<div class='fin-label'>Salve para usar a tag imediatamente.</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='fin-label'>Adicione o ticker aos favoritos para gerenciar tags.</div>", unsafe_allow_html=True)
 
 
 st.markdown("""
@@ -326,6 +698,7 @@ st.markdown(
     }
     div[data-testid="stVerticalBlock"]:has(.fin-card-marker) {
         background-color: #2B2E3F;
+        color: #E5E7EB;
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
         padding: 18px 22px;
@@ -480,52 +853,85 @@ st.markdown(
 )
 
 
-render_favoritos_card()
+render_favoritos_card(favoritos_data, tags_data, favorito_tags_map)
 
 
 if ticker:
     try:
+        # ===== Yahoo Finance preflight (fail fast on 429) =====
+        try:
+            yahoo_preflight_check(ticker)
+        except YahooRateLimitError:
+            st.warning(
+                "⚠️ O Yahoo Finance está bloqueando requisições neste momento (HTTP 429). "
+                "Isso é comum em IPs compartilhados como Starlink/CGNAT.\n\n"
+                "➡️ Soluções: aguarde alguns minutos, use VPN/hotspot, ou acesse novamente "
+                "quando o cache do app já estiver aquecido."
+            )
+            st.stop()
+
+        # ===== Yahoo Finance fetch (cached) =====
+        try:
+            fast = yf_fetch_fast_bundle(ticker)
+            stmts = yf_fetch_statements_bundle(ticker)
+        except YahooRateLimitError:
+            st.warning(
+                "⚠️ O Yahoo Finance está limitando requisições (HTTP 429). "
+                "Isso costuma acontecer com IPs compartilhados (ex.: Starlink/CGNAT). "
+                "Tente novamente em alguns minutos, use VPN/hotspot, ou aumente o cache do app."
+            )
+            st.stop()
+
+        # Use a single Ticker object only for attributes that we already cached.
+        # Avoid calling extra properties that would trigger new HTTP requests.
         acao = yf.Ticker(ticker)
-        historico = acao.history(period="1mo")
-        info = acao.info
+
+        hist_1mo_tmp = fast.get("hist_1mo")
+        historico = hist_1mo_tmp if isinstance(hist_1mo_tmp, pd.DataFrame) else pd.DataFrame()
+
+        hist_5d_tmp = fast.get("hist_5d")
+        dados_ultimos = hist_5d_tmp if isinstance(hist_5d_tmp, pd.DataFrame) else pd.DataFrame()
+
+        info = fast.get("info") or {}
+
         nome_empresa_topo = info.get("shortName", "Empresa não identificada")
         agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        dados_ultimos = acao.history(period="5d").dropna()
 
         # Calcula a data do próximo resultado antes de renderizar o container principal
-        proximo_resultado = info.get('nextEarningsDate') or info.get('earningsTimestamp')
+        proximo_resultado = info.get("nextEarningsDate") or info.get("earningsTimestamp")
         if proximo_resultado:
             try:
-                proximo_resultado = datetime.fromtimestamp(proximo_resultado).strftime('%d/%m/%Y')
-            except:
+                proximo_resultado = datetime.fromtimestamp(proximo_resultado).strftime("%d/%m/%Y")
+            except Exception:
                 proximo_resultado = str(proximo_resultado)
         else:
             proximo_resultado = "Não disponível"
 
-        moeda = info.get('currency', 'Moeda não disponível')
+        moeda = info.get("currency", "Moeda não disponível")
         preco_atual = None
         fechamento_anterior = "Não disponível"
         variacao_percentual = None
         variacao_classe = ""
 
-        if not dados_ultimos.empty:
-            preco_atual = dados_ultimos['Close'].iloc[-1]
+        if isinstance(dados_ultimos, pd.DataFrame) and not dados_ultimos.empty:
+            preco_atual = dados_ultimos["Close"].iloc[-1]
             if len(dados_ultimos) >= 2:
-                fechamento_anterior = dados_ultimos['Close'].iloc[-2]
+                fechamento_anterior = dados_ultimos["Close"].iloc[-2]
             if isinstance(fechamento_anterior, (int, float)) and fechamento_anterior != 0:
                 variacao_percentual = ((preco_atual - fechamento_anterior) / fechamento_anterior) * 100
                 variacao_classe = "fin-variation--up" if variacao_percentual >= 0 else "fin-variation--down"
 
-        abertura = dados_ultimos['Open'].iloc[-1] if not dados_ultimos.empty else "Não disponível"
-        if not dados_ultimos.empty:
-            volume_acoes = dados_ultimos['Volume'].iloc[-1]
-            preco_medio = (dados_ultimos['High'].iloc[-1] + dados_ultimos['Low'].iloc[-1]) / 2
+        abertura = dados_ultimos["Open"].iloc[-1] if isinstance(dados_ultimos, pd.DataFrame) and not dados_ultimos.empty else "Não disponível"
+        if isinstance(dados_ultimos, pd.DataFrame) and not dados_ultimos.empty:
+            volume_acoes = dados_ultimos["Volume"].iloc[-1]
+            preco_medio = (dados_ultimos["High"].iloc[-1] + dados_ultimos["Low"].iloc[-1]) / 2
             volume_financeiro = volume_acoes * preco_medio
             volume_formatado = formatar_valor(volume_financeiro)
         else:
             volume_formatado = "Não disponível"
-        maxima = dados_ultimos['High'].iloc[-1] if not dados_ultimos.empty else "Não disponível"
-        minima = dados_ultimos['Low'].iloc[-1] if not dados_ultimos.empty else "Não disponível"
+
+        maxima = dados_ultimos["High"].iloc[-1] if isinstance(dados_ultimos, pd.DataFrame) and not dados_ultimos.empty else "Não disponível"
+        minima = dados_ultimos["Low"].iloc[-1] if isinstance(dados_ultimos, pd.DataFrame) and not dados_ultimos.empty else "Não disponível"
         media_dia = (maxima + minima) / 2 if maxima != "Não disponível" and minima != "Não disponível" else "Não disponível"
 
         fechamento_anterior_str = f"{fechamento_anterior:.2f}" if isinstance(fechamento_anterior, (int, float)) else fechamento_anterior
@@ -534,7 +940,39 @@ if ticker:
         media_dia_str = f"{media_dia:.2f}" if isinstance(media_dia, (int, float)) else media_dia
         minima_str = f"{minima:.2f}" if isinstance(minima, (int, float)) else minima
 
-        render_card_contexto_vazio(ticker_atual=ticker, nome_empresa=nome_empresa_topo)
+        # Attach cached statements to the ticker object so existing helper functions keep working
+        # without causing extra HTTP calls.
+        try:
+            acao._financials = stmts.get("financials")
+        except Exception:
+            pass
+        try:
+            acao._balance_sheet = stmts.get("balance_sheet")
+        except Exception:
+            pass
+        try:
+            acao._quarterly_financials = stmts.get("quarterly_financials")
+        except Exception:
+            pass
+
+        # Pre-compute volume médio 2m from cached 60d history (best-effort)
+        volume_medio_2m = None
+        historico_60d = fast.get("hist_60d")
+        if not isinstance(historico_60d, pd.DataFrame):
+            historico_60d = None
+        if isinstance(historico_60d, pd.DataFrame) and not historico_60d.empty and "Volume" in historico_60d.columns:
+            try:
+                volume_medio_2m = float(historico_60d["Volume"].mean())
+            except Exception:
+                volume_medio_2m = None
+
+        render_card_contexto_vazio(
+            ticker_atual=ticker,
+            nome_empresa=nome_empresa_topo,
+            favorito_id_atual=favoritos_por_ticker.get(ticker),
+            tags_disponiveis=tags_data,
+            relacao_tags=favorito_tags_map,
+        )
 
         painel_cols = st.columns(2)
 
@@ -617,7 +1055,7 @@ if ticker:
                 st.markdown(f"<div class='fin-label'>❌ Erro ao obter dados de consenso: {e}</div>", unsafe_allow_html=True)
 
             # Gráfico de recomendações detalhadas
-            resumo_recs = getattr(acao, "recommendations_summary", None)
+            resumo_recs = fast.get("rec_summary")
             if isinstance(resumo_recs, pd.DataFrame) and not resumo_recs.empty:
                 ultimo_registro = resumo_recs.iloc[-1]
                 mapping = [
@@ -632,7 +1070,7 @@ if ticker:
                     if valor is not None and valor > 0:
                         rec_chart_data[label] = float(valor)
             else:
-                recomendacoes_df = getattr(acao, "recommendations", None)
+                recomendacoes_df = fast.get("rec_df")
                 if isinstance(recomendacoes_df, pd.DataFrame) and not recomendacoes_df.empty:
                     series = recomendacoes_df["To Grade"].dropna().str.title().tail(50)
                     rec_chart_data = series.value_counts().to_dict()
@@ -679,45 +1117,6 @@ if ticker:
                         + "</div></div>",
                         unsafe_allow_html=True,
                     )
-                    # Gauge images
-                    gauge_base_b64 = _img_to_base64("artifacts/gauge_base.png")
-                    needle_b64 = _img_to_base64("artifacts/gauge_needle.png")
-
-                    # Determine pointer angle
-                    mapa_angulo = {
-                        "Compra Forte": -80,
-                        "Compra": -45,
-                        "Manter": 0,
-                        "Venda": 45,
-                        "Venda Forte": 80,
-                    }
-                    angulo_ponteiro = mapa_angulo.get(consenso, 0)
-
-                    gauge_html = f"""
-<div style="
-    position: relative;
-    width: 100%;
-    max-width: 420px;
-    margin: 16px auto 0 auto;
-">
-  <img
-    src="data:image/png;base64,{gauge_base_b64}"
-    style="width: 100%; display: block;"
-  />
-  <img
-    src="data:image/png;base64,{needle_b64}"
-    style="
-      position: absolute;
-      left: 50%;
-      bottom: 8%;
-      transform: translateX(-50%) rotate({angulo_ponteiro}deg);
-      transform-origin: 50% 90%;
-      width: 32%;
-    "
-  />
-</div>
-"""
-                    st.markdown(gauge_html, unsafe_allow_html=True)
             else:
                 st.markdown("<div class='fin-label'>⚠️ Sem detalhamento de recomendações disponível.</div>", unsafe_allow_html=True)
 
@@ -872,12 +1271,14 @@ if ticker:
         giro_ativos = (receita_total / total_assets) if receita_total and total_assets else None
         fcf_yield = safe_calc(calcular_fcf_yield, ticker_obj)
         calcular_componentes_fcf_yield(ticker_obj)  # executa por consistência com pag6
+        # Volume médio (2m) a partir do histórico 60d já cacheado (evita chamadas extras ao Yahoo)
         volume_medio_2m = None
-        try:
-            historico_60d = ticker_obj.history(period="60d")
-            volume_medio_2m = historico_60d["Volume"].mean()
-        except Exception:
-            volume_medio_2m = None
+        historico_60d = fast.get("hist_60d")
+        if isinstance(historico_60d, pd.DataFrame) and not historico_60d.empty and "Volume" in historico_60d.columns:
+            try:
+                volume_medio_2m = float(historico_60d["Volume"].mean())
+            except Exception:
+                volume_medio_2m = None
 
         # --- Card: Oscilações de Preço ---
         with st.container():

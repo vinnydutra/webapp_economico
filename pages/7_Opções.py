@@ -1,17 +1,278 @@
 import streamlit as st
-from utils import inserir_opcao_carteira, excluir_operacao_opcao, atualizar_operacao_opcao, excluir_operacao_finalizada
+from utils import (
+    inserir_opcao_carteira,
+    excluir_operacao_opcao,
+    atualizar_operacao_opcao,
+    excluir_operacao_finalizada,
+    redirecionar_para_login,
+    tratar_erro_autenticacao,
+    get_logo_img_tag,
+)
+from utils_style import apply_global_dark_theme
+import re
 
 st.set_page_config(layout="wide")
-st.markdown("""
-<style>
-main > div.block-container, section.main > div.block-container, .block-container {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-    max-width: 100% !important;
-}
-</style>
-""", unsafe_allow_html=True)
-st.title("📘 Registro de Opções")
+apply_global_dark_theme()
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1rem;
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+        max-width: 100% !important;
+    }
+
+    /* Cards e linhas no padrão da Pag4 */
+    .fin-card-marker {
+        display: none;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-card-marker) {
+        background-color: #303445;
+        color: #E5E7EB;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-top: 10px;
+        margin-bottom: 12px;
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-card-marker) > div:has(> .fin-card-marker) {
+        display: none;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-card-marker):hover {
+        transform: none !important;
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32) !important;
+    }
+
+    .fin-header-card {
+        background-color: #303445;
+        color: #E5E7EB;
+        border-radius: 10px;
+        padding: 0;
+        margin-top: 10px;
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .fin-header-card:hover {
+        transform: none !important;
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32) !important;
+    }
+    .fin-header-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .fin-header-table,
+    .fin-header-table thead,
+    .fin-header-table tr,
+    .fin-header-table th {
+        border: none !important;
+    }
+    .fin-header-table th {
+        font-size: 0.9rem;
+        color: #CDD2E7;
+        font-weight: 700;
+        padding: 4px 6px;
+        text-align: left;
+        border: none;
+    }
+
+    .fin-row-marker {
+        display: none;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker) {
+        background-color: #303445;
+        color: #E5E7EB;
+        border-radius: 10px;
+        padding: 4px 8px;
+        margin-top: 0;
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker):not(:has(div[data-testid="stVerticalBlock"] .fin-row-marker)):hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.45);
+    }
+    /* centraliza o botão de ações na última coluna */
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker) div[data-testid="column"]:last-child {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0 !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker) div[data-testid="column"]:last-child > div {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker) div[data-testid="column"]:last-child button {
+        margin: 0;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker) div[data-testid="column"] {
+        display: flex;
+        align-items: center;
+    }
+    /* Logo no mesmo tamanho/raio das demais páginas */
+    .fin-logo {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+    }
+    .fin-logo img {
+        width: 30px !important;
+        height: 30px !important;
+        border-radius: 6px !important;
+        object-fit: contain;
+        display: block;
+    }
+    .fin-logo > div {
+        width: 30px !important;
+        height: 30px !important;
+        border-radius: 6px !important;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-marker) div[data-testid="column"]:first-child .stMarkdown p {
+        margin: 0 !important;
+    }
+
+    .fin-row-pop {
+        display: none;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-pop) {
+        background-color: #303445;
+        color: #E5E7EB;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin-top: 6px;
+        box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    div[data-testid="stVerticalBlock"]:has(.fin-row-pop):not(:has(div[data-testid="stVerticalBlock"] .fin-row-pop)):hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 18px rgba(0, 0, 0, 0.45);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+def _handle_auth_error(exc):
+    if tratar_erro_autenticacao(exc):
+        st.stop()
+
+
+def _normalizar_ativo_base(raw: object) -> tuple[str, str]:
+    """
+    Retorna (ticker_para_logo, ticker_para_preco).
+    - Logo: aceita com/sem '.SA' (utils.get_logo_url normaliza removendo .SA).
+    - Preço (yfinance): quando não há sufixo, adiciona '.SA' para tickers B3.
+    """
+    ticker = str(raw or "").upper().strip()
+    if not ticker or ticker in ("NAN", "NONE"):
+        return ("", "")
+
+    ticker_logo = ticker
+
+    if "." in ticker:
+        return (ticker_logo, ticker)
+
+    # Heurística B3 (ações, FIIs/ETFs e BDRs) -> yfinance geralmente requer ".SA"
+    if re.match(r"^[A-Z0-9]{4,6}\\d{1,3}$", ticker):
+        return (ticker_logo, f"{ticker}.SA")
+
+    return (ticker_logo, ticker)
+
+
+def _logo_html_por_ticker(ticker: str, size: int = 30) -> str:
+    """
+    Retorna HTML do logo quando houver (img), ou um fallback com iniciais.
+    """
+    html = get_logo_img_tag(ticker or "LOGO", size=size)
+    return f"<span class='fin-logo'>{html}</span>"
+
+
+def _is_logo_img(html: str) -> bool:
+    return isinstance(html, str) and ("<img" in html) and ("src=" in html)
+
+
+def _extrair_raiz_opcao(ticker_opcao: object) -> str:
+    """
+    Extrai a raiz (empresa) de um ticker de opção brasileiro (ex.: PETRL323 -> PETR).
+    """
+    t = str(ticker_opcao or "").upper().strip()
+    if not t or t in ("NAN", "NONE"):
+        return ""
+    base = t.split(".", 1)[0]
+    # Ex.: PETRL323 -> PETR | B3SAU139 -> B3SA
+    m = re.match(r"^([A-Z0-9]{4,5})[A-Z][0-9]{2,3}$", base)
+    return m.group(1) if m else ""
+
+
+def _logo_por_ativo_base_ou_opcao(*, ativo_base_raw: object, ticker_opcao: object, size: int = 30) -> str:
+    """
+    Preferência:
+      1) Usa ativo_base (ticker do ativo à vista) quando disponível.
+      2) Se não houver ativo_base, tenta inferir raiz do ticker da opção (PETRL323 -> PETR)
+         e testar tickers comuns (PETR4/PETR3/...) para obter o logo.
+    """
+    ativo_logo, _ativo_preco = _normalizar_ativo_base(ativo_base_raw)
+    if ativo_logo:
+        return _logo_html_por_ticker(ativo_logo, size=size)
+
+    raiz = _extrair_raiz_opcao(ticker_opcao)
+    if not raiz:
+        return _logo_html_por_ticker("LOGO", size=size)
+
+    candidatos = [
+        f"{raiz}4",
+        f"{raiz}3",
+        f"{raiz}11",
+        f"{raiz}4.SA",
+        f"{raiz}3.SA",
+        f"{raiz}11.SA",
+    ]
+    fallback_html = ""
+    for cand in candidatos:
+        html = _logo_html_por_ticker(cand, size=size)
+        if _is_logo_img(html):
+            return html
+        if not fallback_html:
+            fallback_html = html
+    return fallback_html or _logo_html_por_ticker("LOGO", size=size)
+
+
+if ("usuario" not in st.session_state or not st.session_state.usuario or "uid" not in st.session_state or not st.session_state.uid):
+    redirecionar_para_login()
+
+# Título + usuário + logout na mesma linha (padrão das demais páginas)
+usuario_logado = st.session_state.get("usuario", "desconhecido")
+st.markdown(
+    f"""
+    <div style="display:flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px;">
+        <h1 style="margin: 0; color: #E5E7EB;">📘 Registro de Opções</h1>
+        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px;">
+            <span style="color: #ccc; font-size: 14px;">👤 {usuario_logado}</span>
+            <form action="/?logout=true" method="get" style="margin:0;">
+                <button type="submit" title="Logout" style="background: none; border: none; color: #ccc; font-size: 18px; cursor: pointer;">⏻</button>
+            </form>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Logout via query param (padrão do app)
+if st.query_params.get("logout") == "true":
+    for chave in ["usuario", "uid", "carteira", "ticker", "favoritos_analise", "access_token"]:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.query_params.clear()
+    st.markdown("<meta http-equiv='refresh' content='0;url=/' />", unsafe_allow_html=True)
+    st.stop()
 
 # Aumentar a fonte das abas (seletores robustos)
 st.markdown(
@@ -40,143 +301,158 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Abas separando os formulários: Compra e Venda
-aba_compra, aba_venda = st.tabs(["Compra", "Venda"])
+with st.container():
+    st.markdown("<div class='fin-card-marker'></div>", unsafe_allow_html=True)
 
-# ----------------------
-# Aba: COMPRA (sem IRRF)
-# ----------------------
-with aba_compra:
-    with st.form("form_insercao_opcao_compra"):
-        # Linha 1 — Identificação da operação
-        linha1 = st.columns([1.6, 0.9, 1.1, 1.1])
-        with linha1[0]:
-            ticker = st.text_input("Código da Opção (Ticker)").upper()
-        with linha1[1]:
-            quantidade = st.number_input("Quantidade", min_value=1, step=1)
-        with linha1[2]:
-            preco = st.number_input("Preço do Prêmio (R$)", min_value=0.0, step=0.01, format="%.2f")
-        with linha1[3]:
-            strike = st.number_input("Strike (R$)", min_value=0.0, step=0.01, format="%.2f")
+    # Abas separando os formulários: Compra e Venda
+    aba_compra, aba_venda = st.tabs(["Compra", "Venda"])
 
-        # Linha 2 — Contexto e custos
-        linha2 = st.columns([1.6, 1.1, 0.9, 1.1])
-        with linha2[0]:
-            ativo_base = st.text_input("Código da Ação (Ticker)").upper()
-        with linha2[1]:
-            tipo_opcao = st.radio("Tipo da Opção", ["CALL", "PUT"], horizontal=True)
-        with linha2[2]:
-            venda_coberta = False  # não se aplica para compra
-        with linha2[3]:
-            custo = st.number_input("Custo Operacional (R$)", min_value=0.0, step=0.01, format="%.2f")
+    # ----------------------
+    # Aba: COMPRA (sem IRRF)
+    # ----------------------
+    with aba_compra:
+        with st.form("form_insercao_opcao_compra"):
+            # Linha 1 — Identificação da operação
+            linha1 = st.columns([1.6, 0.9, 1.1, 1.1])
+            with linha1[0]:
+                ticker = st.text_input("Código da Opção (Ticker)").upper()
+            with linha1[1]:
+                quantidade = st.number_input("Quantidade", min_value=1, step=1)
+            with linha1[2]:
+                preco = st.number_input("Preço do Prêmio (R$)", min_value=0.0, step=0.01, format="%.2f")
+            with linha1[3]:
+                strike = st.number_input("Strike (R$)", min_value=0.0, step=0.01, format="%.2f")
 
-        # Linha 3 — Datas e botão (sem IRRF na compra)
-        linha3 = st.columns([1.1, 1.1, 2.6, 1.2])
-        with linha3[0]:
-            data_operacao = st.date_input("Data da Operação", format="DD/MM/YYYY")
-        with linha3[1]:
-            data_vencimento = st.date_input("Data de Vencimento", format="DD/MM/YYYY")
-        with linha3[2]:
-            st.markdown("&nbsp;", unsafe_allow_html=True)
-        with linha3[3]:
-            submitted = st.form_submit_button("➕ Registrar Operação", use_container_width=True)
+            # Linha 2 — Contexto e custos
+            linha2 = st.columns([1.6, 1.1, 0.9, 1.1])
+            with linha2[0]:
+                ativo_base = st.text_input("Código da Ação (Ticker)").upper()
+            with linha2[1]:
+                tipo_opcao = st.radio("Tipo da Opção", ["CALL", "PUT"], horizontal=True)
+            with linha2[2]:
+                venda_coberta = False  # não se aplica para compra
+            with linha2[3]:
+                custo = st.number_input("Custo Operacional (R$)", min_value=0.0, step=0.01, format="%.2f")
 
-        tipo_operacao = "Compra"
-        irrf_abertura = 0.0
+            # Linha 3 — Datas e botão (sem IRRF na compra)
+            linha3 = st.columns([1.1, 1.1, 2.6, 1.2])
+            with linha3[0]:
+                data_operacao = st.date_input("Data da Operação", format="DD/MM/YYYY")
+            with linha3[1]:
+                data_vencimento = st.date_input("Data de Vencimento", format="DD/MM/YYYY")
+            with linha3[2]:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+            with linha3[3]:
+                submitted = st.form_submit_button("➕ Registrar Operação", use_container_width=True)
 
-        if submitted:
-            if "uid" not in st.session_state:
-                st.error("Usuário não autenticado.")
-            elif not ticker:
-                st.warning("O campo 'Ticker' não pode estar vazio.")
-            elif not ativo_base:
-                st.warning("O campo 'Ativo Subjacente' não pode estar vazio.")
-            else:
-                data_operacao_fmt = data_operacao.strftime("%Y-%m-%d")
-                data_vencimento_fmt = data_vencimento.strftime("%Y-%m-%d")
-                inserir_opcao_carteira(
-                    usuario=st.session_state.get("usuario"),
-                    tipo_operacao=tipo_operacao,
-                    ticker=ticker,
-                    tipo_opcao=tipo_opcao,
-                    strike=strike,
-                    quantidade=quantidade,
-                    preco=preco,
-                    custo=custo,
-                    data_operacao=data_operacao_fmt,
-                    data_vencimento=data_vencimento_fmt,
-                    venda_coberta=venda_coberta,
-                    ativo_base=ativo_base,
-                    irrf_abertura=irrf_abertura,
+            tipo_operacao = "Compra"
+            irrf_abertura = 0.0
+
+            if submitted:
+                if "uid" not in st.session_state:
+                    st.error("Usuário não autenticado.")
+                elif not ticker:
+                    st.warning("O campo 'Ticker' não pode estar vazio.")
+                elif not ativo_base:
+                    st.warning("O campo 'Ativo Subjacente' não pode estar vazio.")
+                else:
+                    data_operacao_fmt = data_operacao.strftime("%Y-%m-%d")
+                    data_vencimento_fmt = data_vencimento.strftime("%Y-%m-%d")
+                    try:
+                        inserir_opcao_carteira(
+                            usuario=st.session_state.get("usuario"),
+                            tipo_operacao=tipo_operacao,
+                            ticker=ticker,
+                            tipo_opcao=tipo_opcao,
+                            strike=strike,
+                            quantidade=quantidade,
+                            preco=preco,
+                            custo=custo,
+                            data_operacao=data_operacao_fmt,
+                            data_vencimento=data_vencimento_fmt,
+                            venda_coberta=venda_coberta,
+                            ativo_base=ativo_base,
+                            irrf_abertura=irrf_abertura,
+                        )
+                        st.success("✅ Operação registrada com sucesso!")
+                    except Exception as exc:
+                        _handle_auth_error(exc)
+                        st.error("Não foi possível registrar a operação.")
+
+    # ---------------------
+    # Aba: VENDA (com IRRF)
+    # ---------------------
+    with aba_venda:
+        with st.form("form_insercao_opcao_venda"):
+            # Linha 1 — Identificação da operação
+            v_linha1 = st.columns([1.6, 0.9, 1.1, 1.1])
+            with v_linha1[0]:
+                ticker = st.text_input("Código da Opção (Ticker)", key="ticker_venda").upper()
+            with v_linha1[1]:
+                quantidade = st.number_input("Quantidade", min_value=1, step=1, key="quantidade_venda")
+            with v_linha1[2]:
+                preco = st.number_input(
+                    "Preço do Prêmio (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_venda"
                 )
-                st.success("✅ Operação registrada com sucesso!")
+            with v_linha1[3]:
+                strike = st.number_input("Strike (R$)", min_value=0.0, step=0.01, format="%.2f", key="strike_venda")
 
-# ---------------------
-# Aba: VENDA (com IRRF)
-# ---------------------
-with aba_venda:
-    with st.form("form_insercao_opcao_venda"):
-        # Linha 1 — Identificação da operação
-        v_linha1 = st.columns([1.6, 0.9, 1.1, 1.1])
-        with v_linha1[0]:
-            ticker = st.text_input("Código da Opção (Ticker)", key="ticker_venda").upper()
-        with v_linha1[1]:
-            quantidade = st.number_input("Quantidade", min_value=1, step=1, key="quantidade_venda")
-        with v_linha1[2]:
-            preco = st.number_input("Preço do Prêmio (R$)", min_value=0.0, step=0.01, format="%.2f", key="preco_venda")
-        with v_linha1[3]:
-            strike = st.number_input("Strike (R$)", min_value=0.0, step=0.01, format="%.2f", key="strike_venda")
-
-        # Linha 2 — Contexto e custos
-        v_linha2 = st.columns([1.6, 1.1, 0.9, 1.1])
-        with v_linha2[0]:
-            ativo_base = st.text_input("Código da Ação (Ticker)", key="ativo_venda").upper()
-        with v_linha2[1]:
-            tipo_opcao = st.radio("Tipo da Opção", ["CALL", "PUT"], horizontal=True, key="tipoop_venda")
-        with v_linha2[2]:
-            venda_coberta = st.checkbox("Venda Coberta", key="coberta_venda")
-        with v_linha2[3]:
-            custo = st.number_input("Custo Operacional (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_venda")
-
-        # Linha 3 — Datas, IRRF e botão
-        v_linha3 = st.columns([1.1, 1.1, 1.1, 1.2])
-        with v_linha3[0]:
-            data_operacao = st.date_input("Data da Operação", format="DD/MM/YYYY", key="data_venda")
-        with v_linha3[1]:
-            data_vencimento = st.date_input("Data de Vencimento", format="DD/MM/YYYY", key="venc_venda")
-        with v_linha3[2]:
-            irrf_abertura = st.number_input("IRRF (R$)", min_value=0.0, step=0.01, format="%.2f", key="irrf_venda")
-        with v_linha3[3]:
-            submitted = st.form_submit_button("➕ Registrar Operação", use_container_width=True)
-
-        tipo_operacao = "Venda"
-
-        if submitted:
-            if "uid" not in st.session_state:
-                st.error("Usuário não autenticado.")
-            elif not ticker:
-                st.warning("O campo 'Ticker' não pode estar vazio.")
-            elif not ativo_base:
-                st.warning("O campo 'Ativo Subjacente' não pode estar vazio.")
-            else:
-                data_operacao_fmt = data_operacao.strftime("%Y-%m-%d")
-                data_vencimento_fmt = data_vencimento.strftime("%Y-%m-%d")
-                inserir_opcao_carteira(
-                    usuario=st.session_state.get("usuario"),
-                    tipo_operacao=tipo_operacao,
-                    ticker=ticker,
-                    tipo_opcao=tipo_opcao,
-                    strike=strike,
-                    quantidade=quantidade,
-                    preco=preco,
-                    custo=custo,
-                    data_operacao=data_operacao_fmt,
-                    data_vencimento=data_vencimento_fmt,
-                    venda_coberta=venda_coberta,
-                    ativo_base=ativo_base,
-                    irrf_abertura=irrf_abertura,
+            # Linha 2 — Contexto e custos
+            v_linha2 = st.columns([1.6, 1.1, 0.9, 1.1])
+            with v_linha2[0]:
+                ativo_base = st.text_input("Código da Ação (Ticker)", key="ativo_venda").upper()
+            with v_linha2[1]:
+                tipo_opcao = st.radio("Tipo da Opção", ["CALL", "PUT"], horizontal=True, key="tipoop_venda")
+            with v_linha2[2]:
+                venda_coberta = st.checkbox("Venda Coberta", key="coberta_venda")
+            with v_linha2[3]:
+                custo = st.number_input(
+                    "Custo Operacional (R$)", min_value=0.0, step=0.01, format="%.2f", key="custo_venda"
                 )
-                st.success("✅ Operação registrada com sucesso!")
+
+            # Linha 3 — Datas, IRRF e botão
+            v_linha3 = st.columns([1.1, 1.1, 1.1, 1.2])
+            with v_linha3[0]:
+                data_operacao = st.date_input("Data da Operação", format="DD/MM/YYYY", key="data_venda")
+            with v_linha3[1]:
+                data_vencimento = st.date_input("Data de Vencimento", format="DD/MM/YYYY", key="venc_venda")
+            with v_linha3[2]:
+                irrf_abertura = st.number_input("IRRF (R$)", min_value=0.0, step=0.01, format="%.2f", key="irrf_venda")
+            with v_linha3[3]:
+                submitted = st.form_submit_button("➕ Registrar Operação", use_container_width=True)
+
+            tipo_operacao = "Venda"
+
+            if submitted:
+                if "uid" not in st.session_state:
+                    st.error("Usuário não autenticado.")
+                elif not ticker:
+                    st.warning("O campo 'Ticker' não pode estar vazio.")
+                elif not ativo_base:
+                    st.warning("O campo 'Ativo Subjacente' não pode estar vazio.")
+                else:
+                    data_operacao_fmt = data_operacao.strftime("%Y-%m-%d")
+                    data_vencimento_fmt = data_vencimento.strftime("%Y-%m-%d")
+                    try:
+                        inserir_opcao_carteira(
+                            usuario=st.session_state.get("usuario"),
+                            tipo_operacao=tipo_operacao,
+                            ticker=ticker,
+                            tipo_opcao=tipo_opcao,
+                            strike=strike,
+                            quantidade=quantidade,
+                            preco=preco,
+                            custo=custo,
+                            data_operacao=data_operacao_fmt,
+                            data_vencimento=data_vencimento_fmt,
+                            venda_coberta=venda_coberta,
+                            ativo_base=ativo_base,
+                            irrf_abertura=irrf_abertura,
+                        )
+                        st.success("✅ Operação registrada com sucesso!")
+                    except Exception as exc:
+                        _handle_auth_error(exc)
+                        st.error("Não foi possível registrar a operação.")
 
 # ================================
 # Tabela de Operações em Andamento
@@ -194,8 +470,19 @@ else:
 
 
     # Buscar dados da Supabase
-    response = supabase.table("opcoes_carteira").select("*").eq("user_id", st.session_state["uid"]).order("data_operacao", desc=False).execute()
-    dados = response.data
+    try:
+        response = (
+            supabase.table("opcoes_carteira")
+            .select("*")
+            .eq("user_id", st.session_state["uid"])
+            .order("data_operacao", desc=False)
+            .execute()
+        )
+        dados = response.data
+    except Exception as exc:
+        _handle_auth_error(exc)
+        st.error("Não foi possível carregar as operações em andamento.")
+        st.stop()
 
     precos_cache = {}
 
@@ -213,119 +500,155 @@ else:
         st.info("Nenhuma operação em andamento encontrada.")
     else:
         df = pd.DataFrame(dados)
+        # Preserva o ativo_base (ticker do ativo à vista) de forma robusta (não depende do rename/pandas inferir colunas).
+        df["_ativo_base"] = [item.get("ativo_base") for item in dados]
         df["id"] = [item["id"] for item in dados]
         df["data_operacao"] = pd.to_datetime(df["data_operacao"], format="%Y-%m-%d").dt.strftime("%d/%m/%y")
         df["data_vencimento"] = pd.to_datetime(df["data_vencimento"], format="%Y-%m-%d").dt.strftime("%d/%m/%y")
 
-        df = df.rename(columns={
-            "tipo_operacao": "Operação",
-            "tipo_opcao": "Tipo",
-            "ticker": "Ticker",
-            "strike": "Strike (R$)",
-            "preco": "Prêmio (R$)",
-            "custo": "Custo (R$)",
-            "quantidade": "Qtd",
-            "data_operacao": "Data Op.",
-            "data_vencimento": "Vencimento",
-            "venda_coberta": "Coberta?"
-        })
+        # Debug opcional (não altera comportamento normal): /?debug_logos=true
+        if st.query_params.get("debug_logos") == "true":
+            try:
+                ativos = df["_ativo_base"].fillna("").astype(str).head(25).tolist()
+            except Exception:
+                ativos = [str(item.get("ativo_base") or "") for item in dados[:25]]
+            st.caption(f"debug_logos: primeiros _ativo_base = {ativos}")
+
+        df = df.rename(
+            columns={
+                "tipo_operacao": "Operação",
+                "tipo_opcao": "Tipo",
+                "ticker": "Ticker",
+                "strike": "Strike (R$)",
+                "preco": "Prêmio (R$)",
+                "custo": "Custo (R$)",
+                "quantidade": "Qtd",
+                "data_operacao": "Data Op.",
+                "data_vencimento": "Vencimento",
+                "venda_coberta": "Coberta?",
+            }
+        )
 
         df["Coberta?"] = df["Coberta?"].apply(lambda x: "✔️" if x else "❌")
 
-        # Estilo CSS
-        st.markdown("""
-        <style>
-            .celula.header {
-                background-color: #212121;
-                font-weight: bold;
-                text-align: left;
-            }
-            .celula {
-                border: 1px solid #444;
-                padding: 6px 10px;
-                border-radius: 4px;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        # Cabeçalho (padrão Pag4: HTML table em card próprio)
+        weights = [1.0, 1.5, 1.0, 1.5, 1.0, 1.4, 1.8, 1.4, 1.4, 1.4, 1.4, 1.15]
+        header_cols = ["", "Operação", "Tipo", "Ticker", "Qtd", "Prêmio", "Resul. (R$)", "Strike", "À Vista", "Venci.", "Data", "⚙️"]
+        peso_total = sum(weights)
+        colgroup_html = "".join(f"<col style='width:{(peso/peso_total)*100:.2f}%;'>" for peso in weights)
+        headers_html = "".join(f"<th>{col}</th>" for col in header_cols)
+        st.markdown(
+            f"""
+            <div class="fin-header-card">
+                <table class="fin-header-table">
+                    <colgroup>{colgroup_html}</colgroup>
+                    <thead><tr>{headers_html}</tr></thead>
+                </table>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        # Cabeçalho
-        header = st.columns([1.5, 1.0, 1.5, 1.0, 1.4, 1.8, 1.4, 1.4, 1.4, 1.4, 0.9])
-        labels = ["Operação", "Tipo", "Ticker", "Qtd", "Prêmio", "Resul. (R$)", "Strike",
-                  "À Vista", "Venci.", "Data", "⚙️"]
-
-        for i, label in enumerate(labels):
-            header[i].markdown(f"<div class='celula header'>{label}</div>", unsafe_allow_html=True)
-
-        # Linhas da tabela
+        # Linhas como cards (padrão Pag4)
         for i, row in df.iterrows():
             if row["Operação"].lower() == "compra":
                 custo_total = (row["Qtd"] * row["Prêmio (R$)"]) + row["Custo (R$)"]
             else:
                 custo_total = (row["Qtd"] * row["Prêmio (R$)"]) - row["Custo (R$)"]
-            cols = st.columns([1.5, 1.0, 1.5, 1.0, 1.4, 1.8, 1.4, 1.4, 1.4, 1.4, 0.9])
+
             operacao = row["Operação"]
             is_coberta = row["Coberta?"] == "✔️" and operacao.lower() == "venda"
-            tooltip = "Venda Coberta" if is_coberta else ""
+            tooltip_op = "Venda Coberta" if is_coberta else ""
             texto_operacao = operacao + "*" if is_coberta else operacao
-            cols[0].markdown(f"<div class='celula' title='{tooltip}'>{texto_operacao}</div>", unsafe_allow_html=True)
-            cols[1].markdown(f"<div class='celula'>{row['Tipo']}</div>", unsafe_allow_html=True)
-            cols[2].markdown(f"<div class='celula'>{row['Ticker']}</div>", unsafe_allow_html=True)
-            cols[3].markdown(f"<div class='celula'>{row['Qtd']}</div>", unsafe_allow_html=True)
-            cols[4].markdown(f"<div class='celula'>R$ {row['Prêmio (R$)']:.2f}".replace('.', ',') + "</div>", unsafe_allow_html=True)
-            tooltip = f"Custo Operacional: R$ {row['Custo (R$)']:.2f}".replace('.', ',')
-            cols[5].markdown(f"<div class='celula' title='{tooltip}'>R$ {custo_total:.2f}".replace('.', ',') + "</div>", unsafe_allow_html=True)
-            cols[6].markdown(f"<div class='celula'>R$ {row['Strike (R$)']:.2f}".replace('.', ',') + "</div>", unsafe_allow_html=True)
-            preco_acao = obter_preco_acao(row.get("ativo_base"))
-            if preco_acao is not None:
-                preco_formatado = f"R$ {preco_acao:.2f}".replace(".", ",")
-                cols[7].markdown(f"<div class='celula'>{preco_formatado}</div>", unsafe_allow_html=True)
-            else:
-                cols[7].markdown(f"<div class='celula' title='Não foi possível obter o preço'>N/D</div>", unsafe_allow_html=True)
-            cols[8].markdown(f"<div class='celula'>{row['Vencimento']}</div>", unsafe_allow_html=True)
-            cols[9].markdown(f"<div class='celula'>{row['Data Op.']}</div>", unsafe_allow_html=True)
-            with cols[10]:
-                if st.button("⚙️", key=f"eng_{i}"):
-                    chave = f"mostrar_acoes_{i}"
-                    estava_ativo = st.session_state.get(chave, False)
 
-                    # Fecha todos os menus
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("mostrar_acoes_"):
-                            st.session_state[k] = False
+            ativo_base_raw = row.get("_ativo_base") or row.get("ativo_base") or ""
+            ativo_logo, ativo_preco = _normalizar_ativo_base(ativo_base_raw)
 
-                    # Se estava fechado, abre o atual
-                    if not estava_ativo:
-                        st.session_state[chave] = True
+            preco_acao = obter_preco_acao(ativo_preco) if ativo_preco else None
+            preco_formatado = f"R$ {preco_acao:.2f}".replace(".", ",") if preco_acao is not None else "N/D"
+            tooltip_preco = "" if preco_acao is not None else "Não foi possível obter o preço"
 
-                    st.rerun()
+            with st.container():
+                st.markdown('<div class="fin-row-marker"></div>', unsafe_allow_html=True)
+                cols = st.columns(weights)
+                logo_html = _logo_por_ativo_base_ou_opcao(
+                    ativo_base_raw=ativo_base_raw,
+                    ticker_opcao=row.get("Ticker"),
+                    size=30,
+                )
+                cols[0].markdown(logo_html, unsafe_allow_html=True)
+                cols[1].markdown(
+                    f"<span title='{tooltip_op}'><strong>{texto_operacao}</strong></span>",
+                    unsafe_allow_html=True,
+                )
+                cols[2].markdown(f"<strong>{row['Tipo']}</strong>", unsafe_allow_html=True)
+                cols[3].markdown(f"<strong>{row['Ticker']}</strong>", unsafe_allow_html=True)
+                cols[4].markdown(f"<strong>{row['Qtd']}</strong>", unsafe_allow_html=True)
+                cols[5].markdown(f"<strong>R$ {row['Prêmio (R$)']:.2f}</strong>".replace(".", ","), unsafe_allow_html=True)
+                tooltip_custo = f"Custo Operacional: R$ {row['Custo (R$)']:.2f}".replace(".", ",")
+                cols[6].markdown(
+                    f"<span title='{tooltip_custo}'><strong>R$ {custo_total:.2f}</strong></span>".replace(".", ","),
+                    unsafe_allow_html=True,
+                )
+                cols[7].markdown(f"<strong>R$ {row['Strike (R$)']:.2f}</strong>".replace(".", ","), unsafe_allow_html=True)
+                if tooltip_preco:
+                    cols[8].markdown(
+                        f"<span title='{tooltip_preco}'><strong>{preco_formatado}</strong></span>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    cols[8].markdown(f"<strong>{preco_formatado}</strong>", unsafe_allow_html=True)
+                cols[9].markdown(f"<strong>{row['Vencimento']}</strong>", unsafe_allow_html=True)
+                cols[10].markdown(f"<strong>{row['Data Op.']}</strong>", unsafe_allow_html=True)
+                with cols[11]:
+                    if st.button("⚙️", key=f"eng_{i}"):
+                        chave = f"mostrar_acoes_{i}"
+                        estava_ativo = st.session_state.get(chave, False)
+
+                        # Fecha todos os menus
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("mostrar_acoes_"):
+                                st.session_state[k] = False
+
+                        # Se estava fechado, abre o atual
+                        if not estava_ativo:
+                            st.session_state[chave] = True
+
+                        st.rerun()
 
             if st.session_state.get(f"mostrar_acoes_{i}", False) and not st.session_state.get(f"registrar_operacao_{i}", False):
-                acoes_cols = st.columns([3, 1.5, 1.5, 4])
-                with acoes_cols[0]:
-                    if f"registrar_operacao_{i}" not in st.session_state:
-                        st.session_state[f"registrar_operacao_{i}"] = False
+                with st.container():
+                    st.markdown('<div class="fin-row-pop"></div>', unsafe_allow_html=True)
+                    acoes_cols = st.columns([3, 1.5, 1.5, 4])
+                    with acoes_cols[0]:
+                        if f"registrar_operacao_{i}" not in st.session_state:
+                            st.session_state[f"registrar_operacao_{i}"] = False
 
-                    if st.button("📥 Finalizar Operação", key=f"nova_operacao_{i}"):
-                        # Fecha qualquer formulário de edição
-                        for k in list(st.session_state.keys()):
-                            if k.startswith("editando_opcao_") or k.startswith("registrar_operacao_"):
-                                st.session_state[k] = False
-                        st.session_state[f"registrar_operacao_{i}"] = True
-                        st.rerun()
+                        if st.button("📥 Finalizar Operação", key=f"nova_operacao_{i}"):
+                            # Fecha qualquer formulário de edição
+                            for k in list(st.session_state.keys()):
+                                if k.startswith("editando_opcao_") or k.startswith("registrar_operacao_"):
+                                    st.session_state[k] = False
+                            st.session_state[f"registrar_operacao_{i}"] = True
+                            st.rerun()
 
-                with acoes_cols[1]:
-                    if st.button("✏️ Editar", key=f"editar_{i}"):
-                        # Fecha todos os menus abertos e edições em andamento
-                        for k in list(st.session_state.keys()):
-                            if k.startswith("mostrar_acoes_") or k.startswith("editando_opcao_"):
-                                st.session_state[k] = False
-                        st.session_state[f"editando_opcao_{i}"] = True
-                        st.rerun()
-                with acoes_cols[2]:
-                    if st.button("🗑️ Excluir", key=f"excluir_{i}"):
-                        excluir_operacao_opcao(row["id"])
-                        del st.session_state[f"mostrar_acoes_{i}"]
-                        st.rerun()
+                    with acoes_cols[1]:
+                        if st.button("✏️ Editar", key=f"editar_{i}"):
+                            # Fecha todos os menus abertos e edições em andamento
+                            for k in list(st.session_state.keys()):
+                                if k.startswith("mostrar_acoes_") or k.startswith("editando_opcao_"):
+                                    st.session_state[k] = False
+                            st.session_state[f"editando_opcao_{i}"] = True
+                            st.rerun()
+                    with acoes_cols[2]:
+                        if st.button("🗑️ Excluir", key=f"excluir_{i}"):
+                            try:
+                                excluir_operacao_opcao(row["id"])
+                                del st.session_state[f"mostrar_acoes_{i}"]
+                                st.rerun()
+                            except Exception as exc:
+                                _handle_auth_error(exc)
+                                st.error("Não foi possível excluir a operação.")
             # Formulário de edição em abas (espelhando registro inicial)
             if st.session_state.get(f"editando_opcao_{i}", False):
                 # Abas de edição espelhando o Registro Inicial (aba padrão de acordo com a operação)
@@ -393,10 +716,14 @@ else:
                                 "data_vencimento": novo_data_venc_c.strftime("%Y-%m-%d"),
                                 "venda_coberta": False,
                             }
-                            atualizar_operacao_opcao(row["id"], dados_atualizados)
-                            del st.session_state[f"editando_opcao_{i}"]
-                            st.success("✅ Operação atualizada com sucesso.")
-                            st.rerun()
+                            try:
+                                atualizar_operacao_opcao(row["id"], dados_atualizados)
+                                del st.session_state[f"editando_opcao_{i}"]
+                                st.success("✅ Operação atualizada com sucesso.")
+                                st.rerun()
+                            except Exception as exc:
+                                _handle_auth_error(exc)
+                                st.error("Não foi possível atualizar a operação.")
 
                         if cancelar_c:
                             del st.session_state[f"editando_opcao_{i}"]
@@ -463,10 +790,14 @@ else:
                                 "venda_coberta": novo_venda_coberta_v,
                                 "irrf_abertura_pendente": float(novo_irrf_pendente),
                             }
-                            atualizar_operacao_opcao(row["id"], dados_atualizados)
-                            del st.session_state[f"editando_opcao_{i}"]
-                            st.success("✅ Operação atualizada com sucesso.")
-                            st.rerun()
+                            try:
+                                atualizar_operacao_opcao(row["id"], dados_atualizados)
+                                del st.session_state[f"editando_opcao_{i}"]
+                                st.success("✅ Operação atualizada com sucesso.")
+                                st.rerun()
+                            except Exception as exc:
+                                _handle_auth_error(exc)
+                                st.error("Não foi possível atualizar a operação.")
 
                         if cancelar_v:
                             del st.session_state[f"editando_opcao_{i}"]
@@ -553,6 +884,7 @@ else:
                             del st.session_state[f"mostrar_acoes_{i}"]
                             st.rerun()
                         except Exception as e:
+                            _handle_auth_error(e)
                             st.error(f"Erro ao finalizar operação: {e}")
                     if cancelar:
                         # Esconde o formulário e os botões de ação
@@ -567,13 +899,19 @@ st.markdown("---")
 st.subheader("Operações Finalizadas")
 
 from utils import carregar_operacoes_finalizadas
-dados_finalizadas = carregar_operacoes_finalizadas(st.session_state["uid"])
+try:
+    dados_finalizadas = carregar_operacoes_finalizadas(st.session_state["uid"])
+except Exception as exc:
+    _handle_auth_error(exc)
+    st.error("Não foi possível carregar as operações finalizadas.")
+    st.stop()
 
 if not dados_finalizadas:
     st.info("Nenhuma operação finalizada encontrada.")
 else:
     import pandas as pd
     df = pd.DataFrame(dados_finalizadas)
+    df["_ativo_base"] = [item.get("ativo_base") for item in dados_finalizadas]
     df["data_operacao"] = pd.to_datetime(df["data_operacao"]).dt.strftime("%d/%m/%y")
     df["data_encerramento"] = pd.to_datetime(df["data_encerramento"]).dt.strftime("%d/%m/%y")
 
@@ -589,141 +927,180 @@ else:
 
     df["Resultado"] = df.apply(calcular_resultado, axis=1)
 
-    # Estilo CSS
-    st.markdown("""
-    <style>
-        .celula.header {
-            background-color: #111;
-            font-weight: bold;
-            text-align: left;
-        }
-        .celula {
-            border: 1px solid #444;
-            padding: 6px 10px;
-            border-radius: 4px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # Cabeçalho (padrão Pag4: HTML table em card próprio)
+    weights = [1.0, 1.9, 1.8, 1.2, 1.3, 1.7, 1.7, 1.8, 1.7, 1.7, 2.0, 1.15]
+    header_cols = ["", "Ticker", "Op Inicial", "Tipo", "Qtd", "Prêmio I", "Prêmio F", "Op Final", "Data I", "Data F", "Resultado", "⚙️"]
+    peso_total = sum(weights)
+    colgroup_html = "".join(f"<col style='width:{(peso/peso_total)*100:.2f}%;'>" for peso in weights)
+    headers_html = "".join(f"<th>{col}</th>" for col in header_cols)
+    st.markdown(
+        f"""
+        <div class="fin-header-card">
+            <table class="fin-header-table">
+                <colgroup>{colgroup_html}</colgroup>
+                <thead><tr>{headers_html}</tr></thead>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # Cabeçalho
-    header = st.columns([1.9, 1.8, 1.2, 1.3, 1.7, 1.7, 1.8, 1.7, 1.7, 2, 1])
-    labels = ["Ticker", "Op Inicial", "Tipo", "Qtd", "Prêmio I", "Prêmio F", "Op Final", "Data I", "Data F", "Resultado", "⚙️"]
-    for i, label in enumerate(labels):
-        header[i].markdown(f"<div class='celula header'>{label}</div>", unsafe_allow_html=True)
-
-    # Linhas da tabela
+    # Linhas como cards (padrão Pag4)
     for i, row in df.iterrows():
-        cols = st.columns([1.9, 1.8, 1.2, 1.3, 1.7, 1.7, 1.8, 1.7, 1.7, 2, 1])
-        cols[0].markdown(f"<div class='celula'>{row['ticker']}</div>", unsafe_allow_html=True)
-        # Novo bloco simplificado para "Op Inicial"
+        ativo_base_raw = row.get("_ativo_base") or row.get("ativo_base") or ""
+        logo = _logo_por_ativo_base_ou_opcao(
+            ativo_base_raw=ativo_base_raw,
+            ticker_opcao=row.get("ticker"),
+            size=30,
+        )
+
         op_inicial = row["tipo_operacao_inicial"]
-        is_coberta = row["Coberta?"] == "✔️" and op_inicial.lower() == "venda"
+        is_coberta = row["Coberta?"] == "✔️" and str(op_inicial).lower() == "venda"
         tooltip_op = "Venda Coberta" if is_coberta else ""
         texto_op = op_inicial + "*" if is_coberta else op_inicial
-        cols[1].markdown(f"<div class='celula' title='{tooltip_op}'>{texto_op}</div>", unsafe_allow_html=True)
-        cols[2].markdown(f"<div class='celula'>{row['tipo_opcao']}</div>", unsafe_allow_html=True)
-        cols[3].markdown(f"<div class='celula'>{row['quantidade']}</div>", unsafe_allow_html=True)
-        cols[4].markdown(f"<div class='celula'>R$ {row['preco_inicial']:.2f}".replace('.', ',') + "</div>", unsafe_allow_html=True)
-        cols[5].markdown(f"<div class='celula'>R$ {row['preco_final']:.2f}".replace('.', ',') + "</div>", unsafe_allow_html=True)
-        cols[6].markdown(f"<div class='celula'>{row['forma_encerramento']}</div>", unsafe_allow_html=True)
-        cols[7].markdown(f"<div class='celula'>{row['data_operacao']}</div>", unsafe_allow_html=True)
-        cols[8].markdown(f"<div class='celula'>{row['data_encerramento']}</div>", unsafe_allow_html=True)
+
         resultado_formatado = "R$ {:,.2f}".format(row["Resultado"]).replace(",", "X").replace(".", ",").replace("X", ".")
-        tooltip_resultado = f"Custo Operacional: R$ {row['custo']:.2f}".replace('.', ',')
+        tooltip_resultado = f"Custo Operacional: R$ {row['custo']:.2f}".replace(".", ",")
         cor_resultado = "#4CAF50" if row["Resultado"] > 0 else "red" if row["Resultado"] < 0 else "inherit"
-        cols[9].markdown(
-            f"<div class='celula' title='{tooltip_resultado}' style='color: {cor_resultado};'>{resultado_formatado}</div>",
-            unsafe_allow_html=True
-        )
-        with cols[10]:
-            if st.button("⚙️", key=f"eng_finalizada_{i}"):
-                chave = f"mostrar_acoes_finalizadas_{i}"
-                estava_ativo = st.session_state.get(chave, False)
 
-                # Fecha todos os menus de finalizadas
-                for k in list(st.session_state.keys()):
-                    if k.startswith("mostrar_acoes_finalizadas_"):
-                        st.session_state[k] = False
+        with st.container():
+            st.markdown('<div class="fin-row-marker"></div>', unsafe_allow_html=True)
+            cols = st.columns(weights)
+            cols[0].markdown(logo, unsafe_allow_html=True)
+            cols[1].markdown(f"<strong>{row['ticker']}</strong>", unsafe_allow_html=True)
+            cols[2].markdown(f"<span title='{tooltip_op}'><strong>{texto_op}</strong></span>", unsafe_allow_html=True)
+            cols[3].markdown(f"<strong>{row['tipo_opcao']}</strong>", unsafe_allow_html=True)
+            cols[4].markdown(f"<strong>{row['quantidade']}</strong>", unsafe_allow_html=True)
+            cols[5].markdown(f"<strong>R$ {row['preco_inicial']:.2f}</strong>".replace(".", ","), unsafe_allow_html=True)
+            cols[6].markdown(f"<strong>R$ {row['preco_final']:.2f}</strong>".replace(".", ","), unsafe_allow_html=True)
+            cols[7].markdown(f"<strong>{row['forma_encerramento']}</strong>", unsafe_allow_html=True)
+            cols[8].markdown(f"<strong>{row['data_operacao']}</strong>", unsafe_allow_html=True)
+            cols[9].markdown(f"<strong>{row['data_encerramento']}</strong>", unsafe_allow_html=True)
+            cols[10].markdown(
+                f"<span title='{tooltip_resultado}'><strong style='color:{cor_resultado};'>{resultado_formatado}</strong></span>",
+                unsafe_allow_html=True,
+            )
+            with cols[11]:
+                if st.button("⚙️", key=f"eng_finalizada_{i}"):
+                    chave = f"mostrar_acoes_finalizadas_{i}"
+                    estava_ativo = st.session_state.get(chave, False)
 
-                # Se estava fechado, abre o atual
-                if not estava_ativo:
-                    st.session_state[chave] = True
+                    # Fecha todos os menus de finalizadas
+                    for k in list(st.session_state.keys()):
+                        if k.startswith("mostrar_acoes_finalizadas_"):
+                            st.session_state[k] = False
 
-                st.rerun()
+                    # Se estava fechado, abre o atual
+                    if not estava_ativo:
+                        st.session_state[chave] = True
+
+                    st.rerun()
 
         # Bloco de menu de ações para operações finalizadas
         if st.session_state.get(f"mostrar_acoes_finalizadas_{i}", False):
-            acoes_cols = st.columns([1.5, 1.5, 7])
-            with acoes_cols[0]:
-                if st.button("✏️ Editar", key=f"editar_finalizada_{i}"):
-                    # Fecha todos os formulários de edição de finalizadas
-                    for k in list(st.session_state.keys()):
-                        if k.startswith("editando_operacao_finalizada_"):
-                            st.session_state[k] = False
-                    st.session_state[f"editando_operacao_finalizada_{i}"] = True
-                    st.rerun()
-            with acoes_cols[1]:
-                if st.button("🗑️ Excluir", key=f"excluir_finalizada_{i}"):
-                    excluir_operacao_finalizada(row["id"])
-                    del st.session_state[f"mostrar_acoes_finalizadas_{i}"]
-                    st.rerun()
+            with st.container():
+                st.markdown('<div class="fin-row-pop"></div>', unsafe_allow_html=True)
+                acoes_cols = st.columns([1.5, 1.5, 7])
+                with acoes_cols[0]:
+                    if st.button("✏️ Editar", key=f"editar_finalizada_{i}"):
+                        # Fecha todos os formulários de edição de finalizadas
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("editando_operacao_finalizada_"):
+                                st.session_state[k] = False
+                        st.session_state[f"editando_operacao_finalizada_{i}"] = True
+                        st.rerun()
+                with acoes_cols[1]:
+                    if st.button("🗑️ Excluir", key=f"excluir_finalizada_{i}"):
+                        try:
+                            excluir_operacao_finalizada(row["id"])
+                            del st.session_state[f"mostrar_acoes_finalizadas_{i}"]
+                            st.rerun()
+                        except Exception as exc:
+                            _handle_auth_error(exc)
+                            st.error("Não foi possível excluir a operação.")
 
         # Formulário de edição inline para operações finalizadas
         if st.session_state.get(f"editando_operacao_finalizada_{i}", False):
             from datetime import datetime
-            with st.form(f"form_edicao_finalizada_{i}"):
-                cols_form = st.columns([1.1, 1, 1, 1, 1])
+            with st.container():
+                st.markdown('<div class="fin-row-pop"></div>', unsafe_allow_html=True)
+                with st.form(f"form_edicao_finalizada_{i}"):
+                    cols_form = st.columns([1.1, 1, 1, 1, 1])
 
-                with cols_form[0]:
-                    novo_tipo_operacao = st.radio("Tipo de Operação", ["Compra", "Venda"], index=0 if row["tipo_operacao_inicial"] == "Compra" else 1, horizontal=True)
-                    novo_venda_coberta = st.checkbox("Venda Coberta", value=(row["Coberta?"] == "✔️"))
-                    novo_tipo_opcao = st.radio("Tipo da Opção", ["CALL", "PUT"], index=0 if row["tipo_opcao"] == "CALL" else 1, horizontal=True)
+                    with cols_form[0]:
+                        novo_tipo_operacao = st.radio(
+                            "Tipo de Operação",
+                            ["Compra", "Venda"],
+                            index=0 if row["tipo_operacao_inicial"] == "Compra" else 1,
+                            horizontal=True,
+                        )
+                        novo_venda_coberta = st.checkbox("Venda Coberta", value=(row["Coberta?"] == "✔️"))
+                        novo_tipo_opcao = st.radio(
+                            "Tipo da Opção",
+                            ["CALL", "PUT"],
+                            index=0 if row["tipo_opcao"] == "CALL" else 1,
+                            horizontal=True,
+                        )
 
-                with cols_form[1]:
-                    novo_ticker = st.text_input("Código da Opção (Ticker)", value=row["ticker"]).upper()
-                    novo_forma_encerramento = st.selectbox("Forma de Encerramento", ["Recompra", "Revenda", "Exercício", "Expiração"], index=["Recompra", "Revenda", "Exercício", "Expiração"].index(row["forma_encerramento"]))
+                    with cols_form[1]:
+                        novo_ticker = st.text_input("Código da Opção (Ticker)", value=row["ticker"]).upper()
+                        novo_forma_encerramento = st.selectbox(
+                            "Forma de Encerramento",
+                            ["Recompra", "Revenda", "Exercício", "Expiração"],
+                            index=["Recompra", "Revenda", "Exercício", "Expiração"].index(row["forma_encerramento"]),
+                        )
 
-                with cols_form[2]:
-                    novo_quantidade = st.number_input("Quantidade", min_value=1, step=1, value=int(row["quantidade"]))
-                    novo_custo = st.number_input("Custo Operacional (R$)", min_value=0.0, step=0.01, format="%.2f", value=float(row["custo"]))
+                    with cols_form[2]:
+                        novo_quantidade = st.number_input("Quantidade", min_value=1, step=1, value=int(row["quantidade"]))
+                        novo_custo = st.number_input(
+                            "Custo Operacional (R$)", min_value=0.0, step=0.01, format="%.2f", value=float(row["custo"])
+                        )
 
-                with cols_form[3]:
-                    novo_preco_inicial = st.number_input("Prêmio Inicial (R$)", min_value=0.0, step=0.01, format="%.2f", value=float(row["preco_inicial"]))
-                    novo_preco_final = st.number_input("Prêmio Final (R$)", min_value=0.0, step=0.01, format="%.2f", value=float(row["preco_final"]))
+                    with cols_form[3]:
+                        novo_preco_inicial = st.number_input(
+                            "Prêmio Inicial (R$)", min_value=0.0, step=0.01, format="%.2f", value=float(row["preco_inicial"])
+                        )
+                        novo_preco_final = st.number_input(
+                            "Prêmio Final (R$)", min_value=0.0, step=0.01, format="%.2f", value=float(row["preco_final"])
+                        )
 
-                with cols_form[4]:
-                    data_op = datetime.strptime(row["data_operacao"], "%d/%m/%y")
-                    data_enc = datetime.strptime(row["data_encerramento"], "%d/%m/%y")
-                    novo_data_op = st.date_input("Data da Operação", value=data_op, format="DD/MM/YYYY")
-                    novo_data_enc = st.date_input("Data de Encerramento", value=data_enc, format="DD/MM/YYYY")
+                    with cols_form[4]:
+                        data_op = datetime.strptime(row["data_operacao"], "%d/%m/%y")
+                        data_enc = datetime.strptime(row["data_encerramento"], "%d/%m/%y")
+                        novo_data_op = st.date_input("Data da Operação", value=data_op, format="DD/MM/YYYY")
+                        novo_data_enc = st.date_input("Data de Encerramento", value=data_enc, format="DD/MM/YYYY")
 
-                # Botões
-                botoes = st.columns([6, 1.2, 1.2])
-                with botoes[1]:
-                    salvar = st.form_submit_button("✅ Salvar")
-                with botoes[2]:
-                    cancelar = st.form_submit_button("❌ Cancelar")
+                    # Botões
+                    botoes = st.columns([6, 1.2, 1.2])
+                    with botoes[1]:
+                        salvar = st.form_submit_button("✅ Salvar")
+                    with botoes[2]:
+                        cancelar = st.form_submit_button("❌ Cancelar")
 
-                if cancelar:
-                    del st.session_state[f"editando_operacao_finalizada_{i}"]
-                    st.rerun()
+                    if cancelar:
+                        del st.session_state[f"editando_operacao_finalizada_{i}"]
+                        st.rerun()
 
-                if salvar:
-                    from utils import atualizar_operacao_finalizada
-                    dados_atualizados = {
-                        "ticker": novo_ticker,
-                        "tipo_opcao": novo_tipo_opcao,
-                        "tipo_operacao_inicial": novo_tipo_operacao,
-                        "forma_encerramento": novo_forma_encerramento,
-                        "quantidade": int(novo_quantidade),
-                        "preco_inicial": float(novo_preco_inicial),
-                        "preco_final": float(novo_preco_final),
-                        "custo": float(novo_custo),
-                        "data_operacao": novo_data_op.strftime("%Y-%m-%d"),
-                        "data_encerramento": novo_data_enc.strftime("%Y-%m-%d"),
-                        "venda_coberta": novo_venda_coberta
-                    }
-                    atualizar_operacao_finalizada(row["id"], dados_atualizados)
-                    del st.session_state[f"editando_operacao_finalizada_{i}"]
-                    st.success("✅ Operação atualizada com sucesso.")
-                    st.rerun()
+                    if salvar:
+                        from utils import atualizar_operacao_finalizada
+                        dados_atualizados = {
+                            "ticker": novo_ticker,
+                            "tipo_opcao": novo_tipo_opcao,
+                            "tipo_operacao_inicial": novo_tipo_operacao,
+                            "forma_encerramento": novo_forma_encerramento,
+                            "quantidade": int(novo_quantidade),
+                            "preco_inicial": float(novo_preco_inicial),
+                            "preco_final": float(novo_preco_final),
+                            "custo": float(novo_custo),
+                            "data_operacao": novo_data_op.strftime("%Y-%m-%d"),
+                            "data_encerramento": novo_data_enc.strftime("%Y-%m-%d"),
+                            "venda_coberta": novo_venda_coberta,
+                        }
+                        try:
+                            atualizar_operacao_finalizada(row["id"], dados_atualizados)
+                            del st.session_state[f"editando_operacao_finalizada_{i}"]
+                            st.success("✅ Operação atualizada com sucesso.")
+                            st.rerun()
+                        except Exception as exc:
+                            _handle_auth_error(exc)
+                            st.error("Não foi possível atualizar a operação.")

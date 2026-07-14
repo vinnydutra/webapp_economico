@@ -19,6 +19,12 @@ Checklist Definitivo – WebApp Econômico no VSCode
 - Atualizar arquivo requirements.txt: pip freeze > requirements.txt
 - Dica: Rode esse comando sempre após instalar ou atualizar pacotes no venv
 
+4.1 Configurar Credenciais do Supabase
+- Crie um arquivo `.env` local ou configure `st.secrets`.
+- Defina `SUPABASE_URL=https://SEU-PROJETO.supabase.co`
+- Defina `SUPABASE_KEY=<sua anon key ou publishable key>`
+- Nunca deixe a chave hardcoded em arquivos `.py`
+
 5. Pacotes Obrigatórios
 - streamlit, yfinance, plotly, wikipedia, pandas, selenium, webdriver-manager, beautifulsoup4, pymupdf
 

@@ -15,6 +15,17 @@ import os
 
 from decimal import Decimal, ROUND_HALF_UP
 
+from utils import tratar_erro_autenticacao
+
+
+def _exec_supabase(builder):
+    """Executa query Supabase e redireciona para login se o JWT expirar."""
+    try:
+        return builder.execute()
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
+
 # --- Perf helpers (ligados por variável de ambiente IR_PERF) ---
 def _perf_enabled() -> bool:
     try:
@@ -79,6 +90,7 @@ def _set_last_result(tag: str, value):
 __all__ = [
     "calcular_status_mes",
     "bump_ir_epoch",
+    "invalidate_ir_caches_for_ops",
     "ler_snapshot_ativo_mes",
     "carregar_ledger_mensal",
     "is_mes_sujo",
@@ -95,6 +107,112 @@ def bump_ir_epoch():
     except Exception:
         # fallback silencioso
         return None
+
+
+def invalidate_ir_caches_for_ops(
+    user_id: str,
+    ano: Optional[int] = None,
+    mes: Optional[int] = None,
+    clear_pag8_run: bool = True,
+) -> dict:
+    """Invalida somente caches fiscais relacionados a operações do usuário.
+
+    Escopo:
+      - bump do epoch global de IR;
+      - invalidação de buckets fiscais do _CACHE para o usuário;
+      - bump de pag8_cache_epoch para forçar recarga dos caches leves da página 8;
+      - limpeza do memo local `_pag8_run` da página 8.
+
+    Não usa `st.cache_data.clear()` global.
+    """
+    removed = {
+        "ops_ano": 0,
+        "ops_mes": 0,
+        "resumo_mes": 0,
+        "isencao_mes": 0,
+        "base_regime_mes": 0,
+        "comp_mes": 0,
+        "contar_ops": 0,
+        "pag8_run": 0,
+        "ir_epoch": None,
+        "pag8_cache_epoch": None,
+    }
+
+    uid = str(user_id or "").strip()
+    if not uid:
+        try:
+            removed["ir_epoch"] = bump_ir_epoch()
+        except Exception:
+            pass
+        return removed
+
+    target_month = None
+    if ano is not None and mes is not None:
+        try:
+            target_month = (int(ano), int(mes))
+        except Exception:
+            target_month = None
+
+    def _drop_keys(bucket_name: str, matcher):
+        try:
+            bucket = _CACHE.get(bucket_name)
+            if not isinstance(bucket, dict) or not bucket:
+                return 0
+            keys_to_drop = [k for k in list(bucket.keys()) if matcher(k)]
+            for k in keys_to_drop:
+                bucket.pop(k, None)
+            return len(keys_to_drop)
+        except Exception:
+            return 0
+
+    def _is_user_key(k) -> bool:
+        return isinstance(k, tuple) and len(k) >= 1 and str(k[0]) == uid
+
+    def _is_user_month_key(k) -> bool:
+        if not (isinstance(k, tuple) and len(k) >= 3 and str(k[0]) == uid):
+            return False
+        if target_month is None:
+            return True
+        try:
+            return int(k[1]) == target_month[0] and int(k[2]) == target_month[1]
+        except Exception:
+            return False
+
+    def _is_ops_ano_key(k) -> bool:
+        if not (isinstance(k, tuple) and len(k) >= 3 and str(k[1]) == uid):
+            return False
+        if target_month is None:
+            return True
+        try:
+            return int(k[2]) == target_month[0]
+        except Exception:
+            return False
+
+    removed["ir_epoch"] = bump_ir_epoch()
+    removed["ops_ano"] = _drop_keys("ops_ano", _is_ops_ano_key)
+    removed["ops_mes"] = _drop_keys("ops_mes", _is_user_month_key)
+    removed["resumo_mes"] = _drop_keys("resumo_mes", _is_user_month_key)
+    removed["isencao_mes"] = _drop_keys("isencao_mes", _is_user_month_key)
+    removed["base_regime_mes"] = _drop_keys("base_regime_mes", _is_user_month_key)
+    removed["comp_mes"] = _drop_keys("comp_mes", _is_user_month_key)
+    removed["contar_ops"] = _drop_keys("contar_ops", _is_user_key)
+
+    try:
+        st.session_state["pag8_cache_epoch"] = int(st.session_state.get("pag8_cache_epoch", 0) or 0) + 1
+        removed["pag8_cache_epoch"] = st.session_state["pag8_cache_epoch"]
+    except Exception:
+        removed["pag8_cache_epoch"] = None
+
+    if clear_pag8_run:
+        try:
+            run_memo = st.session_state.get("_pag8_run")
+            if isinstance(run_memo, dict):
+                removed["pag8_run"] = len(run_memo)
+            st.session_state["_pag8_run"] = {}
+        except Exception:
+            removed["pag8_run"] = 0
+
+    return removed
 
 # --- Helpers de "sujeira" para UX (forçar botão "Calcular este mês") ---
 def _get_epoch_safe() -> int:
@@ -157,7 +275,7 @@ def calcular_status_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
             _epoch_dep = st.session_state.get("ir_epoch", 0)
         except Exception:
             _epoch_dep = None
-        bases_pos = apurar_compensacao_mes(supabase, user_id, ano, mes, __dep_epoch=_epoch_dep)  # já contém ir_devido por regime pós-comp.
+        bases_pos = apurar_compensacao_mes(supabase, user_id, ano, mes, dep_epoch=_epoch_dep)  # já contém ir_devido por regime pós-comp.
     except Exception:
         bases_pos = {"NORMAL": {}, "DAYTRADE": {}, "FII": {}}
 
@@ -196,17 +314,21 @@ def calcular_status_mes(supabase, user_id: str, ano: int, mes: int) -> dict:
 
     # Classificação
     if total_considerado <= 0.0:
-        return {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False, "sujo": sujo_flag}
+        out = {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False, "sujo": sujo_flag}
+        return out
 
     if total_considerado < minimo:
         # abaixo do mínimo: nada a pagar; carrega adiante
-        return {"rotulo": "Abaixo do mínimo", "valor": 0.0, "minimo_aplicado": True, "sujo": sujo_flag}
+        out = {"rotulo": "Abaixo do mínimo", "valor": 0.0, "minimo_aplicado": True, "sujo": sujo_flag}
+        return out
 
     devido = max(total_considerado - pagos, 0.0)
     if devido > 0.0:
-        return {"rotulo": "Devido", "valor": round(devido, 2), "minimo_aplicado": False, "sujo": sujo_flag}
+        out = {"rotulo": "Devido", "valor": round(devido, 2), "minimo_aplicado": False, "sujo": sujo_flag}
+        return out
     else:
-        return {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False, "sujo": sujo_flag}
+        out = {"rotulo": "Quitado/sem débito", "valor": 0.0, "minimo_aplicado": False, "sujo": sujo_flag}
+        return out
 
 def _br_round(x) -> Decimal:
     """Arredondamento consistente em 2 casas decimais para cálculos de IR."""
@@ -463,22 +585,24 @@ def _get_rows_vista_ano(_supabase, user_id: str, ano: int) -> list[dict]:
         )
         t1 = time.perf_counter()
         print(f"[PERF] _get_rows_vista_ano: {(t1 - t0):.3f}s para executar query Supabase")
-        rows = getattr(resp, "data", []) or []
-    except Exception:
-        rows = []
-    # Fallback: se a query por intervalo vier vazia (pode acontecer se data_venda estiver como texto),
-    # busca todas as linhas do usuário e filtra na camada Python.
-    if not rows:
-        try:
-            resp2 = (
-                _supabase.table("ativos_vendidos")
-                .select("data_compra,data_venda,ticker,quantidade,preco_compra,preco_venda,custo_operacional,irrf")
-                .eq("user_id", user_id)
-                .execute()
-            )
-            rows = getattr(resp2, "data", []) or []
-        except Exception:
-            rows = []
+        rows_range = getattr(resp, "data", []) or []
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        rows_range = []
+    # Sempre busca todas as linhas (legado pode estar em dd/mm/yy) e mescla com o range
+    rows_all = []
+    try:
+        resp2 = (
+            _supabase.table("ativos_vendidos")
+            .select("data_compra,data_venda,ticker,quantidade,preco_compra,preco_venda,custo_operacional,irrf")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        rows_all = getattr(resp2, "data", []) or []
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        rows_all = []
+    rows = rows_range + [r for r in rows_all if r not in rows_range]
     # memo anual em memória de processo
     if _internal_cache_enabled() and isinstance(bucket, dict):
         bucket[key] = rows
@@ -511,7 +635,8 @@ def _get_rows_opcoes_operacoes_ano(_supabase, user_id: str, ano: int) -> list[di
         t1 = time.perf_counter()
         print(f"[PERF] _get_rows_opcoes_operacoes_ano: {(t1 - t0):.3f}s para executar query Supabase")
         rows = getattr(resp, "data", []) or []
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         rows = []
     if _internal_cache_enabled() and isinstance(bucket, dict):
         bucket[key] = rows
@@ -541,7 +666,8 @@ def _get_rows_opcoes_carteira_ano(_supabase, user_id: str, ano: int) -> list[dic
         t1 = time.perf_counter()
         print(f"[PERF] _get_rows_opcoes_carteira_ano: {(t1 - t0):.3f}s para executar query Supabase")
         rows = getattr(resp, "data", []) or []
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         rows = []
     if _internal_cache_enabled() and isinstance(bucket, dict):
         bucket[key] = rows
@@ -741,7 +867,8 @@ def get_param(
             _cache_set("params", ck, val)
             _params_memo_set(ck, val)
             return val
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         # silencioso: cai para fallback
         pass
 
@@ -792,12 +919,32 @@ def normalize_val(v) -> float:
         return 0.0
 
 @st.cache_data(ttl=600, show_spinner=False, persist=True)
-def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None):
-    _ = __dep_epoch  # dependency for Streamlit cache invalidation
+def carregar_operacoes_do_mes(
+    _supabase,
+    user_id: str,
+    ano: int,
+    mes: int,
+    dep_epoch: Optional[int] = None,
+    force_refresh: bool = False,
+):
+    _ = dep_epoch  # dependency for Streamlit cache invalidation
     ck = _ck_user_month(user_id, ano, mes)
-    cached = _cache_get("ops_mes", ck)
-    if cached is not None:
-        return cached.copy()
+    if force_refresh:
+        # BUGFIX: permite forçar recarga do Supabase quando o contador indica movimento
+        # mas o cache (leve ou Streamlit) retornou vazio/parcial.
+        _cache_invalidate("ops_mes", ck)
+        try:
+            bucket = _CACHE.get("ops_ano")
+            if isinstance(bucket, dict):
+                keys_to_drop = [k for k in list(bucket.keys()) if len(k) >= 3 and k[1] == str(user_id) and k[2] == int(ano)]
+                for k in keys_to_drop:
+                    bucket.pop(k, None)
+        except Exception:
+            pass
+    else:
+        cached = _cache_get("ops_mes", ck)
+        if cached is not None:
+            return cached.copy()
     inicio_iso, fim_iso = _month_bounds(ano, mes)
     """
     Carrega operações ENCERRADAS do mês especificado (ano, mes) do usuário,
@@ -805,10 +952,12 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep
       - ativos_vendidos (mercado À vista)
       - opcoes_operacoes (encerradas)
     Retorna DataFrame com colunas (nesta ordem):
-      ["data","mercado","ticker","tipo","quantidade","preco_inicial","preco_final","lucro_rs","lucro_pct","custo"]
+      ["data","mercado","ticker","tipo","quantidade","preco_inicial","preco_final","lucro_rs","lucro_pct","custo",
+       "classe_ativo","categoria_ir"]
     Observações:
       - A coluna 'custo' é carregada no backend e incluída aqui, já subtraída de 'lucro_rs'.
       - A coluna 'operacao' foi removida conforme solicitado.
+      - 'categoria_ir' classifica AÇÃO elegível à isenção (ACAO_ISENTA_20K) versus bucket tributável (OUTROS_SEM_ISENCAO/FII).
     """
     _t0_total = _t_now()
     rows = []
@@ -820,6 +969,18 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep
     _count_vista_ini = 0
     av_rows: List[dict] = _get_rows_vista_ano(_supabase, user_id, ano)
     _count_vista_ini = len(rows)
+    def _infer_categoria_ir(mercado: str, tipo: str, tk: Optional[str]) -> str:
+        """Mapeia a linha para uma categoria fiscal (usado para isenção 20k)."""
+        cat_det = classificar_ativo_detalhado(tk)
+        if str(mercado or "").strip().lower().startswith("op"):
+            return "OUTROS_SEM_ISENCAO"
+        if cat_det == "fii":
+            return "FII"
+        if cat_det == "acoes" and (tipo or "") == "Comum":
+            return "ACAO_ISENTA_20K"
+        # Inclui BDR/ETF e ações sem isenção (ex.: day trade) no bucket sem isenção
+        return "OUTROS_SEM_ISENCAO"
+
     for r in av_rows:
         d = _parse_date_any(r.get("data_venda"))
         data_compra = _parse_date_any(r.get("data_compra"))
@@ -838,6 +999,7 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep
 
         tipo = "Day Trade" if (data_compra and d and data_compra == d) else "Comum"
 
+        cat_det = classificar_ativo_detalhado(r.get("ticker"))
         rows.append({
             "data": d,
             "mercado": "À vista",
@@ -849,6 +1011,9 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep
             "lucro_rs": lucro_rs,
             "lucro_pct": lucro_pct,
             "custo": custo,
+            # BUGFIX: categoriza para IR (BDR/ETF entram no bucket tributável, fora da isenção 20k)
+            "classe_ativo": cat_det,
+            "categoria_ir": _infer_categoria_ir("À vista", tipo, r.get("ticker")),
         })
     _qtd_vista = len(rows) - _count_vista_ini
     _perf(f"carregar_operacoes_do_mes.vista_loop: {_t_now() - _t0_vista:.3f}s, ops_vista={_qtd_vista}")
@@ -887,6 +1052,7 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep
 
         tipo = "Day Trade" if (data_encerramento and data_operacao and data_encerramento == data_operacao) else "Comum"
 
+        cat_det = classificar_ativo_detalhado(r.get("ticker"))
         rows.append({
             "data": competencia,
             "mercado": "Opções",
@@ -898,13 +1064,18 @@ def carregar_operacoes_do_mes(_supabase, user_id: str, ano: int, mes: int, __dep
             "lucro_rs": lucro_rs,
             "lucro_pct": lucro_pct,
             "custo": custo,
+            "classe_ativo": cat_det,
+            "categoria_ir": _infer_categoria_ir("Opções", tipo, r.get("ticker")),
         })
     _qtd_op = len(rows) - _count_op_ini
     _perf(f"carregar_operacoes_do_mes.opcoes_loop: {_t_now() - _t0_op:.3f}s, ops_opcoes={_qtd_op}")
 
     df = pd.DataFrame(
         rows,
-        columns=["data","mercado","ticker","tipo","quantidade","preco_inicial","preco_final","lucro_rs","lucro_pct","custo"]
+        columns=[
+            "data","mercado","ticker","tipo","quantidade","preco_inicial","preco_final",
+            "lucro_rs","lucro_pct","custo","classe_ativo","categoria_ir",
+        ],
     )
     _perf(f"carregar_operacoes_do_mes.df_build: {_t_now() - _t0_total:.3f}s, total_ops={len(rows)}")
     _cache_set("ops_mes", ck, df)
@@ -1213,8 +1384,8 @@ def classificar_ativo_detalhado(ticker: Optional[str], meta: Optional[dict] = No
 
 
 @st.cache_data(ttl=600, show_spinner=False, persist=True)
-def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
-    _ = __dep_epoch  # dependency for Streamlit cache invalidation
+def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int, dep_epoch: Optional[int] = None) -> dict:
+    _ = dep_epoch  # dependency for Streamlit cache invalidation
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("resumo_mes", ck)
     if cached is not None:
@@ -1236,10 +1407,10 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int, __d
       - `bdrefffii` mantém compatibilidade com o legado e agora contempla apenas BDR+ETF (FIIs ficam em `fiis`).
     """
     try:
-        _epoch = int(st.session_state.get("ir_epoch", 0) if __dep_epoch is None else __dep_epoch)
+        _epoch = int(st.session_state.get("ir_epoch", 0) if dep_epoch is None else dep_epoch)
     except Exception:
         _epoch = 0
-    df = carregar_operacoes_do_mes(_supabase, user_id, ano, mes, __dep_epoch=_epoch)
+    df = carregar_operacoes_do_mes(_supabase, user_id, ano, mes, dep_epoch=_epoch)
 
     # Inicializa acumuladores
     res = {
@@ -1257,13 +1428,13 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int, __d
         mercado = (row.get("mercado") or "").strip()
         tipo = (row.get("tipo") or "Comum").strip().title()  # "Comum" | "Day Trade"
         lucro = float(row.get("lucro_rs") or 0.0)
+        cat_det = str(row.get("classe_ativo") or classificar_ativo_detalhado(row.get("ticker")) or "").lower()
 
         chave_tipo = "dt" if tipo == "Day Trade" else "comum"
         if mercado == "Opções":
             res[chave_tipo]["opcoes"] += lucro
         else:
             # À vista -> classificar ticker usando classificador detalhado
-            cat_det = classificar_ativo_detalhado(row.get("ticker"))
             if cat_det == "acoes":
                 res[chave_tipo]["acoes"] += lucro
             elif cat_det == "bdr" or cat_det == "etf":
@@ -1281,8 +1452,13 @@ def obter_resumo_categorias_mes(_supabase, user_id: str, ano: int, mes: int, __d
             continue
         if row.get("tipo") != "Comum":
             continue
-        if classificar_ativo_detalhado(row.get("ticker")) != "acoes":
-            continue
+        cat_ir = str(row.get("categoria_ir") or "").upper()
+        if cat_ir:
+            if cat_ir != "ACAO_ISENTA_20K":
+                continue
+        else:
+            if classificar_ativo_detalhado(row.get("ticker")) != "acoes":
+                continue
         q = row.get("quantidade") or 0
         pv = row.get("preco_final") or 0.0
         vendas_total += float(q) * float(pv)
@@ -1298,8 +1474,8 @@ get_resumo_ir_mes = obter_resumo_categorias_mes
 
 
 @st.cache_data(ttl=600, show_spinner=False, persist=True)
-def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
-    _ = __dep_epoch  # dependency for Streamlit cache invalidation
+def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int, dep_epoch: Optional[int] = None) -> dict:
+    _ = dep_epoch  # dependency for Streamlit cache invalidation
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("isencao_mes", ck)
     if cached is not None:
@@ -1324,10 +1500,10 @@ def apurar_isencao_20k_mes(_supabase, user_id: str, ano: int, mes: int, __dep_ep
       }
     """
     try:
-        _epoch = int(st.session_state.get("ir_epoch", 0) if __dep_epoch is None else __dep_epoch)
+        _epoch = int(st.session_state.get("ir_epoch", 0) if dep_epoch is None else dep_epoch)
     except Exception:
         _epoch = 0
-    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes, __dep_epoch=_epoch)
+    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes, dep_epoch=_epoch)
     vendas = float(resumo.get("comum", {}).get("vendas_acoes_total", 0.0) or 0.0)
     lucro_acoes = float(resumo.get("comum", {}).get("acoes", 0.0) or 0.0)
 
@@ -1404,7 +1580,11 @@ def pf_set_vigencia_rpc(supabase, chave: str, valor, inicio, fim):
         "p_inicio": d0.strftime("%Y-%m-%d") if d0 else None,
         "p_fim": d1.strftime("%Y-%m-%d") if d1 else None,
     }
-    return supabase.rpc("pf_set_vigencia", payload).execute()
+    try:
+        return supabase.rpc("pf_set_vigencia", payload).execute()
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
 
 
 def pf_can_delete(supabase, vigencia_id: int, hoje: Optional[date] = None) -> tuple[bool, str]:
@@ -1431,6 +1611,7 @@ def pf_can_delete(supabase, vigencia_id: int, hoje: Optional[date] = None) -> tu
         de = _to_date(row.get("efetivo_de"))
         ate = _to_date(row.get("efetivo_ate"))
     except Exception as e:
+        tratar_erro_autenticacao(e)
         return False, f"Falha ao ler vigência: {e}"
 
     # 2) Verificar se é a única vigência da chave
@@ -1445,7 +1626,8 @@ def pf_can_delete(supabase, vigencia_id: int, hoje: Optional[date] = None) -> tu
         others = int(getattr(q, "count", 0) or 0)
         if others <= 0:
             return False, f"Não é possível excluir: seria a última vigência para a chave {chave}."
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         # Se não conseguir contar, seja conservador
         return False, "Não foi possível validar quantidade de vigências desta chave."
 
@@ -1468,7 +1650,8 @@ def pf_can_delete(supabase, vigencia_id: int, hoje: Optional[date] = None) -> tu
                 return False, (
                     "Não é possível excluir: esta vigência está ativa hoje e não há outra cobertura para a chave."
                 )
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         return False, "Não foi possível validar cobertura de hoje para esta chave."
 
     return True, "ok"
@@ -1484,7 +1667,8 @@ def pf_update_vigencia(supabase, vigencia_id: int, valor=None, efetivo_de=None, 
         try:
             q = supabase.table("parametros_fiscais").select("chave").eq("id", vigencia_id).single().execute()
             k = (getattr(q, "data", {}) or {}).get("chave")
-        except Exception:
+        except Exception as exc:
+            tratar_erro_autenticacao(exc)
             k = None
         payload["valor"] = normalizar_valor_parametro(k or "", valor)
     if efetivo_de is not None:
@@ -1493,7 +1677,11 @@ def pf_update_vigencia(supabase, vigencia_id: int, valor=None, efetivo_de=None, 
     if efetivo_ate is not None:
         d1 = _to_date(efetivo_ate)
         payload["efetivo_ate"] = d1.strftime("%Y-%m-%d") if d1 else None
-    return supabase.table("parametros_fiscais").update(payload).eq("id", vigencia_id).execute()
+    try:
+        return supabase.table("parametros_fiscais").update(payload).eq("id", vigencia_id).execute()
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
 
 
 def pf_delete_vigencia(supabase, vigencia_id: int):
@@ -1510,10 +1698,15 @@ def pf_delete_vigencia(supabase, vigencia_id: int):
     try:
         return supabase.rpc("pf_delete_vigencia", {"p_id": int(vigencia_id)}).execute()
     except Exception as e:
+        tratar_erro_autenticacao(e)
         msg = str(e)
         if "schema cache" in msg or "not find the function" in msg or "does not exist" in msg:
             # Fallback: delete direto
-            return supabase.table("parametros_fiscais").delete().eq("id", vigencia_id).execute()
+            try:
+                return supabase.table("parametros_fiscais").delete().eq("id", vigencia_id).execute()
+            except Exception as exc:
+                tratar_erro_autenticacao(exc)
+                raise
         raise
 
 
@@ -1545,7 +1738,7 @@ def mapear_grupo_e_aliquota(row) -> tuple[str, float]:
 # Apuração Base Tributável e IR por Regime no mês
 # =========================
 @st.cache_data(ttl=600, persist=True)
-def apurar_base_regime_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
+def apurar_base_regime_mes(_supabase, user_id: str, ano: int, mes: int, dep_epoch: Optional[int] = None) -> dict:
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("base_regime_mes", ck)
     if cached is not None:
@@ -1569,7 +1762,7 @@ def apurar_base_regime_mes(_supabase, user_id: str, ano: int, mes: int, __dep_ep
     """
     # --- Memoização por execução (evita recomputos no mesmo rerun) ---
     try:
-        _epoch = __dep_epoch if __dep_epoch is not None else (st.session_state.get("ir_epoch", 0) if hasattr(st, "session_state") else 0)
+        _epoch = dep_epoch if dep_epoch is not None else (st.session_state.get("ir_epoch", 0) if hasattr(st, "session_state") else 0)
     except Exception:
         _epoch = 0
     _memo_tag = f"base_regime_mes:{user_id}:{int(ano)}:{int(mes)}:{_epoch}"
@@ -1577,13 +1770,13 @@ def apurar_base_regime_mes(_supabase, user_id: str, ano: int, mes: int, __dep_ep
     if _memo_hit is not None:
         return dict(_memo_hit)
     # Dependência de cache por epoch (invalidação barata via bump_ir_epoch)
-    if __dep_epoch is None:
+    if dep_epoch is None:
         try:
-            __dep_epoch = st.session_state.get("ir_epoch", 0)
+            dep_epoch = st.session_state.get("ir_epoch", 0)
         except Exception:
-            __dep_epoch = 0
-    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes, __dep_epoch=__dep_epoch)
-    isencao = apurar_isencao_20k_mes(_supabase, user_id, ano, mes, __dep_epoch=__dep_epoch)
+            dep_epoch = 0
+    resumo = obter_resumo_categorias_mes(_supabase, user_id, ano, mes, dep_epoch=dep_epoch)
+    isencao = apurar_isencao_20k_mes(_supabase, user_id, ano, mes, dep_epoch=dep_epoch)
 
     # Parâmetros de alíquotas
     aliquota_normal = get_param(_supabase, "ALIQUOTA_NORMAL", ano, mes, default=ALIQUOTA_NORMAL)
@@ -1648,12 +1841,13 @@ def _buscar_carry_bulk(_supabase, user_id: str, ano: int, mes: int) -> dict:
                     res[tipo] = float(r.get("prejuizo_restante_fim") or 0.0)
                     break
         return res
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         return {"comum": 0.0, "daytrade": 0.0, "fii": 0.0}
 
 
 @st.cache_data(ttl=600, show_spinner=False, persist=True)
-def apurar_compensacao_mes(_supabase, user_id: str, ano: int, mes: int, __dep_epoch: Optional[int] = None) -> dict:
+def apurar_compensacao_mes(_supabase, user_id: str, ano: int, mes: int, dep_epoch: Optional[int] = None) -> dict:
     ck = _ck_user_month(user_id, ano, mes)
     cached = _cache_get("comp_mes", ck)
     if cached is not None:
@@ -1684,7 +1878,7 @@ def apurar_compensacao_mes(_supabase, user_id: str, ano: int, mes: int, __dep_ep
     """
     # --- Memoização por execução (evita recomputos no mesmo rerun) ---
     try:
-        _epoch = __dep_epoch if __dep_epoch is not None else (st.session_state.get("ir_epoch", 0) if hasattr(st, "session_state") else 0)
+        _epoch = dep_epoch if dep_epoch is not None else (st.session_state.get("ir_epoch", 0) if hasattr(st, "session_state") else 0)
     except Exception:
         _epoch = 0
     _memo_tag = f"comp_mes:{user_id}:{int(ano)}:{int(mes)}:{_epoch}"
@@ -1692,12 +1886,12 @@ def apurar_compensacao_mes(_supabase, user_id: str, ano: int, mes: int, __dep_ep
     if _memo_hit is not None:
         return dict(_memo_hit)
     # Dependência de cache por epoch (invalidação barata via bump_ir_epoch)
-    if __dep_epoch is None:
+    if dep_epoch is None:
         try:
-            __dep_epoch = st.session_state.get("ir_epoch", 0)
+            dep_epoch = st.session_state.get("ir_epoch", 0)
         except Exception:
-            __dep_epoch = 0
-    bases = apurar_base_regime_mes(_supabase, user_id, ano, mes, __dep_epoch=__dep_epoch)
+            dep_epoch = 0
+    bases = apurar_base_regime_mes(_supabase, user_id, ano, mes, dep_epoch=dep_epoch)
     # Busca carry-ins em bulk
     carrys = _buscar_carry_bulk(_supabase, user_id, ano, mes)
     carry_normal = carrys["comum"]
@@ -1796,14 +1990,35 @@ def contar_operacoes_por_ano_mes(supabase, user_id: str) -> Dict[str, Any]:
       "src": {"vista": int, "opcoes": int}
     }
     """
+    # PostgREST aplica limite padrão de 1000 linhas por chamada quando nenhum range é informado.
+    # Fazemos paginação explícita para não perder operações mais novas (ex.: anos recentes).
+    def _fetch_all_rows(table: str, columns: str):
+        out: list[dict] = []
+        start, page_size = 0, 1000
+        while True:
+            q = supabase.table(table).select(columns).eq("user_id", user_id).range(start, start + page_size - 1)
+            resp = q.execute()
+            batch = getattr(resp, "data", []) or []
+            out.extend(batch)
+            if len(batch) < page_size:
+                break
+            start += page_size
+        return out
+
     # À vista
-    av_resp = supabase.table("ativos_vendidos").select("data_venda").eq("user_id", user_id).execute()
-    av_rows: List[dict] = getattr(av_resp, "data", []) or []
+    try:
+        av_rows: List[dict] = _fetch_all_rows("ativos_vendidos", "data_venda")
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        av_rows = []
     av_dates = [_parse_date_any(r.get("data_venda")) for r in av_rows if r.get("data_venda")]
 
     # Opções
-    op_resp = supabase.table("opcoes_operacoes").select("data_operacao,data_encerramento").eq("user_id", user_id).execute()
-    op_rows: List[dict] = getattr(op_resp, "data", []) or []
+    try:
+        op_rows: List[dict] = _fetch_all_rows("opcoes_operacoes", "data_operacao,data_encerramento")
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        op_rows = []
     op_dates = []
     for r in op_rows:
         d = _to_date(r.get("data_encerramento")) or _to_date(r.get("data_operacao"))
@@ -1858,7 +2073,11 @@ def inserir_pagamento_darf(supabase, user_id: str, ano: int, mes: int, tipo: str
         "data_pagamento": data_str,
         "obs": obs,
     }
-    resp = supabase.table("pagamentos_darf").insert(payload).execute()
+    try:
+        resp = supabase.table("pagamentos_darf").insert(payload).execute()
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
     ck_um = _ck_user_month(user_id, ano, mes)
     _cache_invalidate("snapshot_mes", ck_um)
     _cache_invalidate("sum_darf", (user_id, ano, mes, tipo_norm))
@@ -1887,17 +2106,21 @@ def listar_pagamentos_darf(supabase, user_id: str, ano: int, mes: int, tipo: str
     Lista os pagamentos DARF para o usuário, ano, mês e tipo especificados.
     Aceita variações de caixa no banco ("comum", "Comum", "COMUM", etc.).
     """
-    resp = (
-        supabase.table("pagamentos_darf")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("ano", ano)
-        .eq("mes", mes)
-        .in_("tipo", [tipo_norm, tipo_norm.title(), tipo_norm.upper()])
-        .order("data_pagamento", desc=True)
-        .order("id", desc=True)
-        .execute()
-    )
+    try:
+        resp = (
+            supabase.table("pagamentos_darf")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("ano", ano)
+            .eq("mes", mes)
+            .in_("tipo", [tipo_norm, tipo_norm.title(), tipo_norm.upper()])
+            .order("data_pagamento", desc=True)
+            .order("id", desc=True)
+            .execute()
+        )
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        return []
     data = getattr(resp, "data", None) or []
     _cache_set("listar_darf", ck, data)
     return data
@@ -1921,12 +2144,16 @@ def atualizar_pagamento_darf(supabase, pagamento_id: Any, dados_atualizados: dic
         if tnorm in {"comum", "daytrade", "fii"}:
             payload["tipo"] = tnorm
 
-    resp = (
-        supabase.table("pagamentos_darf")
-        .update(payload)
-        .eq("id", pagamento_id)
-        .execute()
-    )
+    try:
+        resp = (
+            supabase.table("pagamentos_darf")
+            .update(payload)
+            .eq("id", pagamento_id)
+            .execute()
+        )
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
 
     # Lê o registro atualizado para invalidar caches com precisão
     try:
@@ -1948,7 +2175,8 @@ def atualizar_pagamento_darf(supabase, pagamento_id: Any, dados_atualizados: dic
             _cache_invalidate("listar_darf", (uid, a, m, t))
             _cache_invalidate("diag_mes", _ck_user_month_tipo(uid, a, m, t))
             _cache_invalidate("snapshot_mes", ck_um)
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         pass
 
     # Invalida cache persistente do Streamlit
@@ -1985,15 +2213,20 @@ def excluir_pagamento_darf(supabase, pagamento_id: Any):
         a = int(row0.get("ano") or 0)
         m = int(row0.get("mes") or 0)
         t = (row0.get("tipo") or "").strip().lower()
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         pass
 
-    resp = (
-        supabase.table("pagamentos_darf")
-        .delete()
-        .eq("id", pagamento_id)
-        .execute()
-    )
+    try:
+        resp = (
+            supabase.table("pagamentos_darf")
+            .delete()
+            .eq("id", pagamento_id)
+            .execute()
+        )
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
+        raise
 
     # Invalida caches específicos (se conseguimos identificar as chaves)
     try:
@@ -2047,7 +2280,8 @@ def sum_pagamentos_darf(supabase, user_id: str, ano: int, mes: int, tipo: str, _
             total += float(r.get("valor_pago") or 0.0)
         _cache_set("sum_darf", ck, total)
         return total
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         return 0.0
 
 
@@ -2082,7 +2316,8 @@ def _snapshot_ativo_tipo(supabase, user_id: str, ano: int, mes: int, tipo: str):
         )
         rows = getattr(resp, "data", []) or []
         return rows[0] if rows else None
-    except Exception:
+    except Exception as exc:
+        tratar_erro_autenticacao(exc)
         return None
 
 
@@ -2308,6 +2543,7 @@ def consolidar_competencia_mes(supabase, user_id: str, ano: int, mes: int) -> di
             resp_ins = supabase.table("compensacoes_ir").insert(payload).execute()
             resultados[tipo] = (getattr(resp_ins, "data", None) or [payload])[0]
         except Exception as e:
+            tratar_erro_autenticacao(e)
             resultados[tipo] = {"error": str(e)}
 
     # --- Pós-consolidação: garantir que a UI reflita imediatamente o fechamento ---
@@ -2534,11 +2770,10 @@ def diagnostico_darf_mes(supabase, user_id: str, ano: int, mes: int, tipo: str) 
       - sugerido (float): valor sugerido a recolher considerando a regra do mínimo.
       - status (str): "Abaixo do mínimo" | "Devido" | "Quitado/sem débito".
     """
-    
     # Normaliza tipo para as chaves de tabela
     tipo_norm = (str(tipo) or "").strip().lower()
     if tipo_norm not in {"comum", "daytrade", "fii"}:
-        return {
+        result = {
             "ir_devido_mes": 0.0,
             "irrf_mes": 0.0,
             "carry_sub10": 0.0,
@@ -2548,6 +2783,7 @@ def diagnostico_darf_mes(supabase, user_id: str, ano: int, mes: int, tipo: str) 
             "sugerido": 0.0,
             "status": "Quitado/sem débito",
         }
+        return result
 
     # 1) IR devido do mês pós-compensação por regime
     comp = apurar_compensacao_mes(supabase, user_id, ano, mes)
@@ -2593,7 +2829,7 @@ def diagnostico_darf_mes(supabase, user_id: str, ano: int, mes: int, tipo: str) 
         sugerido = max(total_considerado - pagos_mes, 0.0)
         status = "Devido" if sugerido > 0 else "Quitado/sem débito"
 
-    return {
+    result = {
         "ir_devido_mes": round(ir_devido_mes, 2),
         "irrf_mes": round(irrf_mes, 2),
         "carry_sub10": round(float(carry), 2),
@@ -2603,3 +2839,4 @@ def diagnostico_darf_mes(supabase, user_id: str, ano: int, mes: int, tipo: str) 
         "sugerido": round(sugerido, 2),
         "status": status,
     }
+    return result

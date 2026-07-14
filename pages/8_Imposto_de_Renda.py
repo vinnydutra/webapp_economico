@@ -81,7 +81,8 @@ def proxima_competencia_nao_consolidada_com_ops(df_compensacoes, ops_count: dict
 import streamlit as st
 import datetime as _dt_perf
 from postgrest.exceptions import APIError as PostgrestAPIError
-from utils import supabase_autenticado
+from utils import supabase_autenticado, redirecionar_para_login, tratar_erro_autenticacao
+from utils_style import apply_global_dark_theme
 from utils_ir import (
     contar_operacoes_por_ano_mes,
     carregar_operacoes_do_mes,
@@ -119,6 +120,8 @@ from utils_ir import (
     atualizar_pagamento_darf as _ir__atualizar_pagamento_darf_orig,
     excluir_pagamento_darf as _ir__excluir_pagamento_darf_orig,
 )
+
+apply_global_dark_theme()
 
 def _pag8__bump_after_payment(ano: int, mes: int):
     """Incrementa o epoch específico de pagamentos e limpa o memo local
@@ -405,10 +408,14 @@ div[data-testid="stTabs"] button[role="tab"] p {
 """, unsafe_allow_html=True)
 
 
+def _handle_auth_error(exc):
+    if tratar_erro_autenticacao(exc):
+        st.stop()
+
+
 # Sessão alinhada ao padrão do app (vide 7_Opções.py)
-if "uid" not in st.session_state:
-    st.warning("Usuário não autenticado. Faça login para ver as operações.")
-    st.stop()
+if "uid" not in st.session_state or not st.session_state.get("usuario"):
+    redirecionar_para_login()
 
 # --- Memoização local para chamadas pesadas (por sessão) ---
 supabase = supabase_autenticado()
@@ -430,6 +437,9 @@ if _last_action_msg:
 # -------- Cached helpers (reduzem recomputo pesado) --------
 # Chamada com retry automático em caso de JWT expirado
 #
+# Versão do cache de contagem de operações (incrementar para invalidar cache persistente)
+_OPS_COUNT_VER = 2
+
 # [IR-LEDGER-P1] Ledger único cacheado
 @st.cache_data(ttl=300, show_spinner=False, persist=True)
 def _cached_ledger(uid: str, ano_ini: int, ano_fim: int, epoch: int):
@@ -447,11 +457,11 @@ def _retry_jwt(fn):
 # -------- Cached helpers (reduzem recomputo pesado) --------
 @st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_apurar_base(uid: str, ano: int, mes: int, epoch: int):
-    return _retry_jwt(lambda sb: apurar_base_regime_mes(sb, uid, ano, mes))
+    return _retry_jwt(lambda sb: apurar_base_regime_mes(sb, uid, ano, mes, dep_epoch=epoch))
 
 @st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_apurar_comp(uid: str, ano: int, mes: int, epoch: int):
-    return _retry_jwt(lambda sb: apurar_compensacao_mes(sb, uid, ano, mes))
+    return _retry_jwt(lambda sb: apurar_compensacao_mes(sb, uid, ano, mes, dep_epoch=epoch))
 
 @st.cache_data(ttl=30, show_spinner=False, persist=True)
 def _cached_carregar_ops(uid: str, ano: int, mes: int, epoch: int):
@@ -825,24 +835,29 @@ def _previa_corrigida_total(uid: str, ano: int, mes: int, epoch: int):
 
 # --- Caches leves para carga inicial da página (evitam custo repetido na abertura) ---
 @st.cache_data(ttl=300, show_spinner=False, persist=True)
-def _cached_ops_count(uid: str, epoch: int):
+def _cached_ops_count(uid: str, epoch: int, ver: int = _OPS_COUNT_VER):
     # NÃO passe o client como argumento cacheado para evitar hashing do _supabase
     sb = supabase_autenticado()
-    return contar_operacoes_por_ano_mes(sb, uid)
+    try:
+        return contar_operacoes_por_ano_mes(sb, uid)
+    except Exception as exc:
+        _handle_auth_error(exc)
+        return {}
 
 @st.cache_data(ttl=300, show_spinner=False, persist=True)
 def _cached_compensacoes(uid: str, epoch: int):
     sb = supabase_autenticado()
     try:
         return sb.table("compensacoes_ir").select("*").eq("user_id", uid).execute().data
-    except Exception:
+    except Exception as exc:
+        _handle_auth_error(exc)
         return []
 
 import pandas as pd
 # --- Prefer real tab bar component if available ---
 
 # Contagem consolidada (à vista + opções)
-ops_count = _cached_ops_count(user_id, st.session_state["pag8_cache_epoch"])
+ops_count = _cached_ops_count(user_id, st.session_state["pag8_cache_epoch"], _OPS_COUNT_VER)
 
 # Carrega compensações consolidadas (cache leve) para definir mês padrão
 try:
@@ -878,6 +893,16 @@ else:
 
 # Rótulos mostram a contagem de operações quando houver; caso contrário, 0
 ano_labels = [f"{a} ({ops_count['years'].get(a, 0)})" for a in anos]
+
+if not anos:
+    st.info(
+        "Você ainda não tem operações registradas para este usuário, "
+        "então não há nada para calcular de Imposto de Renda.\n\n"
+        "Assim que você lançar compras e vendas nas outras páginas do app, "
+        "esta tela passará a exibir o resumo do IR mês a mês."
+    )
+    st.stop()
+
 _default_year_label = (
     f"{ano_padrao} ({ops_count['years'].get(ano_padrao, 0)})"
     if (isinstance(ano_padrao, int) and (ano_padrao in anos)) else ano_labels[0]
@@ -957,23 +982,27 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
 
                 # Se o cache veio vazio, SEMPRE tenta um carregamento direto (sem cache),
                 # independente de n_ops_hint, para capturar operações recentes ou contagem desatualizada.
-                if df.empty:
+                def _reload_ops_from_db():
                     try:
                         from utils_ir import carregar_operacoes_do_mes as _carregar_ops_nocache
                         _sb = supabase_autenticado()
-                        df_nc = _carregar_ops_nocache(_sb, user_id, ano, m)
-                        if df_nc is not None and hasattr(df_nc, "empty") and (not df_nc.empty):
-                            df = df_nc.copy()
-                            # Atualiza o ops_count local para este mês/ano (evita rótulo "0" e skips indevidos)
-                            try:
-                                ops_count.setdefault("months", {}).setdefault(ano, {})[m] = int(df.shape[0])
-                                # Recalcula o total por ano exibido nas tabs (years[ano])
-                                _months_map = ops_count.get("months", {}).get(ano, {}) or {}
-                                ops_count.setdefault("years", {})[ano] = int(sum(int(v or 0) for v in _months_map.values()))
-                            except Exception:
-                                pass
+                        dep_epoch = _epoch()
+                        return _carregar_ops_nocache(_sb, user_id, ano, m, dep_epoch, force_refresh=True)
                     except Exception:
-                        pass
+                        return None
+
+                # Recarrega quando o cache veio vazio ou quando o contador indica mais operações do que o DataFrame atual.
+                if df.empty or (n_ops_hint > 0 and df.shape[0] < n_ops_hint):
+                    df_nc = _reload_ops_from_db()
+                    if df_nc is not None and hasattr(df_nc, "empty") and (not df_nc.empty):
+                        df = df_nc.copy()
+                        # Atualiza o ops_count local para este mês/ano (evita rótulo incorreto na aba)
+                        try:
+                            ops_count.setdefault("months", {}).setdefault(ano, {})[m] = int(df.shape[0])
+                            _months_map = ops_count.get("months", {}).get(ano, {}) or {}
+                            ops_count.setdefault("years", {})[ano] = int(sum(int(v or 0) for v in _months_map.values()))
+                        except Exception:
+                            pass
 
                 n_ops_eff = 0 if df.empty else int(df.shape[0])
                 _is_current_month = (ano == _curr_year_perf and m == _curr_month_perf)
@@ -1385,7 +1414,8 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                         except Exception:
                             return "R$ 0,00"
                     _m_ledger = (ledger_cache.get((ano, m)) or {})
-                    resumo = _m_ledger.get("resumo") or obter_resumo_categorias_mes(supabase, user_id, ano, m)
+                    _resumo_ledger = _m_ledger.get("resumo")
+                    resumo = _resumo_ledger or obter_resumo_categorias_mes(supabase, user_id, ano, m)
                     # Agregados por coluna
                     total_comum = float(resumo["comum"]["acoes"]) + float(resumo["comum"]["bdrefffii"]) + float(resumo["comum"]["opcoes"])
                     total_dt    = float(resumo["dt"]["acoes"])    + float(resumo["dt"]["bdrefffii"])    + float(resumo["dt"]["opcoes"])
@@ -1404,7 +1434,8 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     dt_fiis   = _fmt_brl(resumo["dt"].get("fiis", 0.0))
 
                     # === Regra de Isenção 20k (apenas Ações Comum/swing) ===
-                    isencao = _m_ledger.get("isencao") or apurar_isencao_20k_mes(supabase, user_id, ano, m)
+                    _isencao_ledger = _m_ledger.get("isencao")
+                    isencao = _isencao_ledger or apurar_isencao_20k_mes(supabase, user_id, ano, m)
                     isencao_str = "Sim" if isencao.get("isencao_aplicada") else "Não"
                     c_acoes_trib = _fmt_brl(isencao.get("lucro_tributavel_acoes", 0.0))
                     c_acoes_isento = _fmt_brl(isencao.get("lucro_isento_acoes", 0.0))
@@ -1414,10 +1445,12 @@ for idx, (tab, ano) in enumerate(zip(tabs_anos, anos)):
                     c_total = _fmt_brl(total_comum_val)
 
                     # === IR devido por regime (base bruta) + compensação (C1) ===
-                    bases = _m_ledger.get("bases") or _cached_apurar_base(user_id, ano, m, _epoch())
+                    _bases_ledger = _m_ledger.get("bases")
+                    bases = _bases_ledger or _cached_apurar_base(user_id, ano, m, _epoch())
 
                     # Compensação do mês por regime (usa carry-in de compensacoes_ir)
-                    comp = _m_ledger.get("comp") or _cached_apurar_comp(user_id, ano, m, _epoch())
+                    _comp_ledger = _m_ledger.get("comp")
+                    comp = _comp_ledger or _cached_apurar_comp(user_id, ano, m, _epoch())
 
 
                     # FORMATOS – COMUM
